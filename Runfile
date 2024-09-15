@@ -1,0 +1,12 @@
+# vim: set ft=yaml:
+
+version: 0.0.1
+
+tasks:
+  build:
+    # dir: ./cmd/run
+    cmd: 
+      - |+
+        echo "building ..."
+        go build -o bin/run ./cmd/run
+        echo "DONE"

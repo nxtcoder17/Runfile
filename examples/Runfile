@@ -1,0 +1,38 @@
+# vim: set ft=yaml:
+
+version: 0.0.1
+
+tasks:
+  cook:
+    env:
+      k1: v1
+      k2: 'f"\( asfsadfssdfas asfd $Asdfasdfa'
+      k3:
+        sh: echo "hello"
+    cmd: 
+      - echo "cook"
+      - "echo k1: $k1, k2: $k2, k3: $k3"
+  clean:
+    name: clean
+    shell: ["python", "-c"]
+    cmd:
+      - |+
+        import secrets
+        print(secrets.token_hex(32))
+  laundry:
+    name: laundry
+    shell: ["node", "-e"]
+    cmd: 
+      - console.log("laundry")
+  eat:
+    name: eat
+    cmd: 
+      - echo "eat"
+  sleep:
+    name: sleep
+    cmd:
+      - echo "sleep"
+  code:
+    name: code
+    cmd:
+      - echo "code"
