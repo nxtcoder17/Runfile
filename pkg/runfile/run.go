@@ -11,7 +11,7 @@ import (
 
 type runArgs struct {
 	shell []string
-	env   map[string]string
+	env   []string // [key=value, key=value, ...]
 	cmd   string
 
 	stdout io.Writer
@@ -39,15 +39,10 @@ func runInShell(ctx context.Context, args runArgs) error {
 	// f.WriteString(args.cmd)
 	// f.Close()
 
-	environ := os.Environ()
-	for k, v := range args.env {
-		environ = append(environ, fmt.Sprintf("%s=%v", k, v))
-	}
-
 	// cargs := append(args.shell[1:], f.Name())
 	cargs := append(args.shell[1:], args.cmd)
 	c := exec.CommandContext(ctx, shell, cargs...)
-	c.Env = environ
+	c.Env = args.env
 	c.Stdout = args.stdout
 	c.Stderr = args.stderr
 	return c.Run()
@@ -59,11 +54,11 @@ func (r *RunFile) Run(ctx context.Context, taskName string) error {
 		return fmt.Errorf("task %s not found", taskName)
 	}
 
-	env := make(map[string]string, len(task.Env))
+	env := make([]string, len(task.Env))
 	for k, v := range task.Env {
 		switch v := v.(type) {
 		case string:
-			env[k] = v
+			env = append(env, fmt.Sprintf("%s=%s", k, v))
 		case map[string]any:
 			shcmd, ok := v["sh"]
 			if !ok {
@@ -79,22 +74,31 @@ func (r *RunFile) Run(ctx context.Context, taskName string) error {
 
 			if err := runInShell(ctx, runArgs{
 				shell:  task.Shell,
-				env:    env,
+				env:    os.Environ(),
 				cmd:    s,
 				stdout: value,
 			}); err != nil {
 				return err
 			}
-			env[k] = value.String()
+			env = append(env, fmt.Sprintf("%s=%v", k, value.String()))
 		default:
 			panic(fmt.Sprintf("env %s is not a string (%T)", k, v))
 		}
 	}
 
+	// parsing dotenv
+	s, err := parseDotEnv(task.DotEnv...)
+	if err != nil {
+		return err
+	}
+
+	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
+	env = append(s, env...)
+
 	for _, cmd := range task.Commands {
 		runInShell(ctx, runArgs{
 			shell: task.Shell,
-			env:   env,
+			env:   append(os.Environ(), env...),
 			cmd:   cmd,
 		})
 	}
