@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
+	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"sigs.k8s.io/yaml"
 )
 
@@ -18,8 +20,10 @@ func ParseRunFile(file string) (*RunFile, error) {
 	}
 	err = yaml.Unmarshal(f, &runfile)
 	if err != nil {
-		return &runfile, err
+		return nil, err
 	}
+
+	runfile.attrs.RunfilePath = fn.Must(filepath.Abs(file))
 	return &runfile, nil
 }
 
@@ -28,6 +32,10 @@ func parseDotEnv(files ...string) ([]string, error) {
 	results := make([]string, 0, 5)
 
 	for i := range files {
+		if !filepath.IsAbs(files[i]) {
+			return nil, fmt.Errorf("dotenv file path %s, must be absolute", files[i])
+		}
+
 		f, err := os.Open(files[i])
 		if err != nil {
 			return nil, err

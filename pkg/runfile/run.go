@@ -7,12 +7,17 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+
+	fn "github.com/nxtcoder17/runfile/pkg/functions"
 )
 
 type runArgs struct {
-	shell []string
-	env   []string // [key=value, key=value, ...]
-	cmd   string
+	shell      []string
+	env        []string // [key=value, key=value, ...]
+	workingDir string
+
+	cmd string
 
 	stdout io.Writer
 	stderr io.Writer
@@ -42,6 +47,7 @@ func runInShell(ctx context.Context, args runArgs) error {
 	// cargs := append(args.shell[1:], f.Name())
 	cargs := append(args.shell[1:], args.cmd)
 	c := exec.CommandContext(ctx, shell, cargs...)
+	c.Dir = args.workingDir
 	c.Env = args.env
 	c.Stdout = args.stdout
 	c.Stderr = args.stderr
@@ -86,8 +92,23 @@ func (r *RunFile) Run(ctx context.Context, taskName string) error {
 		}
 	}
 
+	dotenvPaths := make([]string, len(task.DotEnv))
+	for i, v := range task.DotEnv {
+		dotenvPath := filepath.Join(filepath.Dir(r.attrs.RunfilePath), v)
+		fi, err := os.Stat(dotenvPath)
+		if err != nil {
+			return err
+		}
+
+		if fi.IsDir() {
+			return fmt.Errorf("dotenv file must be a file, but %s is a directory", v)
+		}
+
+		dotenvPaths[i] = dotenvPath
+	}
+
 	// parsing dotenv
-	s, err := parseDotEnv(task.DotEnv...)
+	s, err := parseDotEnv(dotenvPaths...)
 	if err != nil {
 		return err
 	}
@@ -97,9 +118,10 @@ func (r *RunFile) Run(ctx context.Context, taskName string) error {
 
 	for _, cmd := range task.Commands {
 		runInShell(ctx, runArgs{
-			shell: task.Shell,
-			env:   append(os.Environ(), env...),
-			cmd:   cmd,
+			shell:      task.Shell,
+			env:        append(os.Environ(), env...),
+			cmd:        cmd,
+			workingDir: fn.DefaultIfNil(task.Dir, fn.Must(os.Getwd())),
 		})
 	}
 	return nil

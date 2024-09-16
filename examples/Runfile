@@ -9,7 +9,7 @@ tasks:
       k3:
         sh: echo -n "hello"
     dotenv:
-      - .secrets/env
+      - ../.secrets/env
     cmd: 
       - echo "hi hello"
       - echo "value of k1 is '$k1'"

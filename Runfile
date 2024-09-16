@@ -11,6 +11,7 @@ tasks:
         echo "DONE"
 
   example:
+    dir: ./examples
     cmd: 
       - |+
-        run -f ./examples/Runfile cook
+        run cook
