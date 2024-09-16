@@ -4,9 +4,13 @@ version: 0.0.1
 
 tasks:
   build:
-    # dir: ./cmd/run
     cmd: 
       - |+
         echo "building ..."
-        go build -o bin/run ./cmd/run
+        go build -o bin/run -ldflags="-s -w" -tags urfave_cli_no_docs cmd/run/main.go
         echo "DONE"
+
+  example:
+    cmd: 
+      - |+
+        run -f ./examples/Runfile cook
