@@ -1,55 +1,41 @@
 package runfile
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
-	"strconv"
-	"strings"
+	"path/filepath"
 
-	"sigs.k8s.io/yaml"
+	"github.com/joho/godotenv"
 )
 
-func ParseRunFile(file string) (*RunFile, error) {
-	var runfile RunFile
-	f, err := os.ReadFile(file)
-	if err != nil {
-		return &runfile, err
-	}
-	err = yaml.Unmarshal(f, &runfile)
-	if err != nil {
-		return &runfile, err
-	}
-	return &runfile, nil
+func parseDotEnv(reader io.Reader) (map[string]string, error) {
+	return godotenv.Parse(reader)
 }
 
 // parseDotEnv parses the .env file and returns a slice of strings as in os.Environ()
-func parseDotEnv(files ...string) ([]string, error) {
-	results := make([]string, 0, 5)
+func parseDotEnvFiles(files ...string) (map[string]string, error) {
+	results := make(map[string]string)
 
 	for i := range files {
+		if !filepath.IsAbs(files[i]) {
+			return nil, fmt.Errorf("dotenv file path %s, must be absolute", files[i])
+		}
+
 		f, err := os.Open(files[i])
 		if err != nil {
 			return nil, err
 		}
-
-		s := bufio.NewScanner(f)
-		for s.Scan() {
-			s2 := strings.SplitN(s.Text(), "=", 2)
-			if len(s2) != 2 {
-				continue
-			}
-			s, _ := strconv.Unquote(string(s2[1]))
-
-			// os.Setenv(s2[0], s2[1])
-			os.Setenv(s2[0], s)
-			results = append(results, s2[0])
+		m, err := parseDotEnv(f)
+		if err != nil {
+			return nil, err
 		}
-	}
+		f.Close()
 
-	for i := range results {
-		v := os.Getenv(results[i])
-		results[i] = fmt.Sprintf("%s=%v", results[i], v)
+		for k, v := range m {
+			results[k] = v
+		}
+
 	}
 
 	return results, nil

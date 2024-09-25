@@ -9,8 +9,9 @@ tasks:
       k3:
         sh: echo -n "hello"
     dotenv:
-      - .secrets/env
+      - ../.secrets/env
     cmd: 
+      # - sleep 5
       - echo "hi hello"
       - echo "value of k1 is '$k1'"
       - echo "value of k2 is '$k2'"
@@ -21,13 +22,15 @@ tasks:
     name: clean
     shell: ["python", "-c"]
     dotenv:
-      - .secrets/env
+      - ../.secrets/env
     cmd:
       - |+
         import secrets
         import os
+        import time
         print(os.environ['key_id'])
-        # print(secrets.token_hex(32))
+        time.sleep(6)
+        print(secrets.token_hex(32))
   laundry:
     name: laundry
     shell: ["node", "-e"]
