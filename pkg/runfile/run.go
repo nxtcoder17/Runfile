@@ -1,18 +1,20 @@
 package runfile
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
+	"golang.org/x/sync/errgroup"
 )
 
-type runArgs struct {
+type cmdArgs struct {
 	shell      []string
 	env        []string // [key=value, key=value, ...]
 	workingDir string
@@ -23,7 +25,7 @@ type runArgs struct {
 	stderr io.Writer
 }
 
-func runInShell(ctx context.Context, args runArgs) error {
+func createCommand(ctx context.Context, args cmdArgs) *exec.Cmd {
 	if args.shell == nil {
 		args.shell = []string{"sh", "-c"}
 	}
@@ -51,50 +53,18 @@ func runInShell(ctx context.Context, args runArgs) error {
 	c.Env = args.env
 	c.Stdout = args.stdout
 	c.Stderr = args.stderr
-	return c.Run()
+	return c
 }
 
-func (r *RunFile) Run(ctx context.Context, taskName string) error {
-	task, ok := r.Tasks[taskName]
-	if !ok {
-		return fmt.Errorf("task %s not found", taskName)
-	}
-
-	env := make([]string, len(task.Env))
-	for k, v := range task.Env {
-		switch v := v.(type) {
-		case string:
-			env = append(env, fmt.Sprintf("%s=%s", k, v))
-		case map[string]any:
-			shcmd, ok := v["sh"]
-			if !ok {
-				return fmt.Errorf("env %s is not a string", k)
-			}
-
-			s, ok := shcmd.(string)
-			if !ok {
-				return fmt.Errorf("shell cmd is not a string")
-			}
-
-			value := new(bytes.Buffer)
-
-			if err := runInShell(ctx, runArgs{
-				shell:  task.Shell,
-				env:    os.Environ(),
-				cmd:    s,
-				stdout: value,
-			}); err != nil {
-				return err
-			}
-			env = append(env, fmt.Sprintf("%s=%v", k, value.String()))
-		default:
-			panic(fmt.Sprintf("env %s is not a string (%T)", k, v))
-		}
+func (rf *Runfile) runTask(ctx context.Context, task Task) error {
+	shell := task.Shell
+	if shell == nil {
+		shell = []string{"sh", "-c"}
 	}
 
 	dotenvPaths := make([]string, len(task.DotEnv))
 	for i, v := range task.DotEnv {
-		dotenvPath := filepath.Join(filepath.Dir(r.attrs.RunfilePath), v)
+		dotenvPath := filepath.Join(filepath.Dir(rf.attrs.RunfilePath), v)
 		fi, err := os.Stat(dotenvPath)
 		if err != nil {
 			return err
@@ -108,21 +78,86 @@ func (r *RunFile) Run(ctx context.Context, taskName string) error {
 	}
 
 	// parsing dotenv
-	s, err := parseDotEnv(dotenvPaths...)
+	dotEnvVars, err := parseDotEnvFiles(dotenvPaths...)
 	if err != nil {
 		return err
 	}
 
-	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
-	env = append(s, env...)
-
-	for _, cmd := range task.Commands {
-		runInShell(ctx, runArgs{
-			shell:      task.Shell,
-			env:        append(os.Environ(), env...),
-			cmd:        cmd,
-			workingDir: fn.DefaultIfNil(task.Dir, fn.Must(os.Getwd())),
-		})
+	env := make([]string, 0, len(os.Environ())+len(dotEnvVars))
+	env = append(env, os.Environ()...)
+	for k, v := range dotEnvVars {
+		env = append(env, fmt.Sprintf("%s=%v", k, v))
 	}
+
+	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
+	envVars, err := parseEnvVars(ctx, task.Env, EvaluationArgs{
+		Shell:   task.Shell,
+		Environ: env,
+	})
+	if err != nil {
+		return err
+	}
+
+	for k, v := range envVars {
+		env = append(env, fmt.Sprintf("%s=%v", k, v))
+	}
+
+	script := make([]string, 0, len(task.Commands))
+
+	for _, command := range task.Commands {
+		script = append(script, command)
+	}
+
+	cmd := createCommand(ctx, cmdArgs{
+		shell:      task.Shell,
+		env:        env,
+		cmd:        strings.Join(script, "\n"),
+		workingDir: fn.DefaultIfNil(task.Dir, fn.Must(os.Getwd())),
+	})
+
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type RunArgs struct {
+	Tasks             []string
+	ExecuteInParallel bool
+	Watch             bool
+	Debug             bool
+}
+
+func (rf *Runfile) Run(ctx context.Context, args RunArgs) error {
+	for _, v := range args.Tasks {
+		if _, ok := rf.Tasks[v]; !ok {
+			return ErrTaskNotFound{TaskName: v, RunfilePath: rf.attrs.RunfilePath}
+		}
+	}
+
+	if args.ExecuteInParallel {
+		slog.Default().Debug("running in parallel mode", "tasks", args.Tasks)
+		g := new(errgroup.Group)
+
+		for _, tn := range args.Tasks {
+			g.Go(func() error {
+				return rf.runTask(ctx, rf.Tasks[tn])
+			})
+		}
+
+		// Wait for all tasks to finish
+		if err := g.Wait(); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	for _, tn := range args.Tasks {
+		if err := rf.runTask(ctx, rf.Tasks[tn]); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

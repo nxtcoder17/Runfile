@@ -14,4 +14,4 @@ tasks:
     dir: ./examples
     cmd: 
       - |+
-        run cook
+        run cook clean

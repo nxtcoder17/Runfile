@@ -1,22 +1,63 @@
 package runfile
 
-type runfileAttrs struct {
-	RunfilePath string
+import (
+	"bytes"
+	"context"
+	"fmt"
+)
+
+/*
+EnvVar Values could take multiple forms:
+
+- my_key: "value"
+
+or
+
+  - my_key:
+    "sh": "echo hello hi"
+
+Object values with `sh` key, such that the output of this command will be the value of the top-level key
+*/
+type EnvVar map[string]any
+
+type EvaluationArgs struct {
+	Shell   []string
+	Environ []string
 }
 
-type RunFile struct {
-	attrs runfileAttrs
+func parseEnvVars(ctx context.Context, ev EnvVar, args EvaluationArgs) (map[string]string, error) {
+	env := make(map[string]string, len(ev))
+	for k, v := range ev {
+		switch v := v.(type) {
+		case string:
+			env[k] = v
+		case map[string]any:
+			shcmd, ok := v["sh"]
+			if !ok {
+				return nil, fmt.Errorf("sh key is missing")
+			}
 
-	Version string
-	Tasks   map[string]TaskSpec `json:"tasks"`
-}
+			s, ok := shcmd.(string)
+			if !ok {
+				return nil, fmt.Errorf("shell cmd is not a string")
+			}
 
-type TaskSpec struct {
-	// load env vars from [.env](https://www.google.com/search?q=sample+dotenv+files&udm=2) files
-	DotEnv []string `json:"dotenv"`
-	// working directory for the task
-	Dir      *string        `json:"dir,omitempty"`
-	Env      map[string]any `json:"env"`
-	Commands []string       `json:"cmd"`
-	Shell    []string       `json:"shell"`
+			value := new(bytes.Buffer)
+
+			cmd := createCommand(ctx, cmdArgs{
+				shell:  args.Shell,
+				env:    args.Environ,
+				cmd:    s,
+				stdout: value,
+			})
+			if err := cmd.Run(); err != nil {
+				return nil, err
+			}
+			env[k] = value.String()
+		default:
+			panic(fmt.Sprintf("env %s is not a string (%T)", k, v))
+		}
+	}
+
+	return env, nil
 }
