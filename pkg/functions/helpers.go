@@ -16,3 +16,7 @@ func Must[T any](v T, err error) T {
 	}
 	return v
 }
+
+func New[T any](v T) *T {
+	return &v
+}

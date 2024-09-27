@@ -13,8 +13,14 @@ type Task struct {
 
 	Env map[string]any `json:"env"`
 
+	// this field is for testing purposes only
+	ignoreSystemEnv bool `json:"-"`
+
 	// List of commands to be executed in given shell (default: sh)
-	Commands []string `json:"cmd"`
+	// can take multiple forms
+	//   - simple string
+	//   - a json object with key `run`, signifying other tasks to run
+	Commands []any `json:"cmd"`
 
 	// Shell in which above commands will be executed
 	// Default: ["sh", "-c"]
@@ -24,6 +30,11 @@ type Task struct {
 	   - ["node", "-e"]
 	*/
 	Shell []string `json:"shell"`
+}
+
+type CommandJson struct {
+	Command string
+	Run     string `json:"run"`
 }
 
 type ErrTaskNotFound struct {
