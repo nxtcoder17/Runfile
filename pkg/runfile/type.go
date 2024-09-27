@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 )
 
 /*
@@ -53,9 +54,9 @@ func parseEnvVars(ctx context.Context, ev EnvVar, args EvaluationArgs) (map[stri
 			if err := cmd.Run(); err != nil {
 				return nil, err
 			}
-			env[k] = value.String()
+			env[k] = strings.TrimSpace(value.String())
 		default:
-			panic(fmt.Sprintf("env %s is not a string (%T)", k, v))
+			env[k] = fmt.Sprintf("%v", v)
 		}
 	}
 
