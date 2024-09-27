@@ -1,6 +1,8 @@
 name: Release
 
 on:
+  workflow_dispatch:
+
   push:
     tags:
       - 'v*'
@@ -10,6 +12,7 @@ on:
 
     paths:
       - "cmd/run/**"
+      - ".github/**"
       - "pkg/**"
       - go.* # go.mod, and go.sum
       - flake.*
@@ -47,12 +50,9 @@ jobs:
 
       - uses: nxtcoder17/actions/setup-cache-go@v1
         with:
-          cache_key: "run"
+          cache_key: "run-${{ matrix.platform }}-${{ matrix.arch }}"
           working_directory: .
 
-      # it will set 2 env variables
-      # IMAGE_TAG - image tag
-      # OVERRIDE_PUSHED_IMAGE - if true, it will not use pushed image tag
       - uses: nxtcoder17/actions/generate-image-tag@v1
 
       - uses: nxtcoder17/actions/setup-nix-cachix@v1
@@ -70,11 +70,9 @@ jobs:
           binary=bin/run-${{ matrix.platform }}-${{ matrix.arch }}
           go build -o $binary -ldflags="-s -w" -tags urfave_cli_no_docs cmd/run/main.go
 
-      - name: compress binary with upx (on linux)
-        if: matrix.platform == 'linux'
-        shell: bash
-        run: |+
-          upx $binary
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            upx $binary
+          fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -113,11 +111,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |+
-          set -e
+          set +e
           gh release list -R ${{ github.repository }}  | grep -i $IMAGE_TAG
-          exit_code=$1
+          exit_code=$?
           if [ $exit_code -ne 0 ]; then
-            gh release create $IMAGE_TAG -R ${{ github.respository }} --generate-notes --prerelease
+            gh release create $IMAGE_TAG -R ${{ github.repository }} --generate-notes --prerelease
           fi
 
       - name: upload to github release
