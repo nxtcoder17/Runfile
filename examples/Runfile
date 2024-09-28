@@ -8,6 +8,8 @@ tasks:
       k2: 'f"\( asfsadfssdfas asfd $Asdfasdfa'
       k3:
         sh: echo -n "hello"
+      k4:
+        required: true
     dotenv:
       - ../.secrets/env
     cmd: 

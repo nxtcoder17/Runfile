@@ -1,13 +1,17 @@
 package runfile
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"text/template"
 
+	sprig "github.com/go-task/slim-sprig/v3"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
+	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 )
 
 type ParsedTask struct {
@@ -17,35 +21,53 @@ type ParsedTask struct {
 	Commands   []CommandJson `json:"commands"`
 }
 
-type ErrTask struct {
-	ErrTaskNotFound
-	Message string
-	Err     error
-}
-
-func (e ErrTask) Error() string {
-	return fmt.Sprintf("[task] %s (Runfile: %s), says %s, got %v", e.TaskName, e.RunfilePath, e.Message, e.Err)
-}
-
-func NewErrTask(runfilePath, taskName, message string, err error) ErrTask {
-	return ErrTask{
-		ErrTaskNotFound: ErrTaskNotFound{
-			RunfilePath: runfilePath,
-			TaskName:    taskName,
-		},
-		Message: message,
-		Err:     err,
-	}
-}
-
 func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, error) {
-	newErr := func(message string, err error) ErrTask {
-		return NewErrTask(rf.attrs.RunfilePath, taskName, message, err)
-	}
+	errctx := errors.Context{Task: taskName, Runfile: rf.attrs.RunfilePath}
 
 	task, ok := rf.Tasks[taskName]
 	if !ok {
-		return nil, ErrTaskNotFound{TaskName: taskName, RunfilePath: rf.attrs.RunfilePath}
+		return nil, errors.TaskNotFound{Context: errctx}
+	}
+
+	for _, requirement := range task.Requires {
+		if requirement == nil {
+			continue
+		}
+
+		if requirement.Sh != nil {
+			cmd := createCommand(ctx, cmdArgs{
+				shell:      []string{"sh", "-c"},
+				env:        os.Environ(),
+				workingDir: filepath.Dir(rf.attrs.RunfilePath),
+				cmd:        *requirement.Sh,
+				stdout:     fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
+				stderr:     fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
+			})
+			if err := cmd.Run(); err != nil {
+				return nil, errors.ErrTaskFailedRequirements{Context: errctx.WithErr(err), Requirement: *requirement.Sh}
+			}
+			continue
+		}
+
+		if requirement.GoTmpl != nil {
+			t := template.New("requirement")
+			t = t.Funcs(sprig.FuncMap())
+			templateExpr := fmt.Sprintf(`{{ %s }}`, *requirement.GoTmpl)
+			t, err := t.Parse(templateExpr)
+			if err != nil {
+				return nil, err
+			}
+			b := new(bytes.Buffer)
+			if err := t.ExecuteTemplate(b, "requirement", map[string]string{}); err != nil {
+				return nil, err
+			}
+
+			if b.String() != "true" {
+				return nil, errors.ErrTaskFailedRequirements{Context: errctx.WithErr(fmt.Errorf("`%s` evaluated to `%s` (wanted: `true`)", templateExpr, b.String())), Requirement: *requirement.GoTmpl}
+			}
+
+			continue
+		}
 	}
 
 	if task.Shell == nil {
@@ -58,21 +80,21 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 
 	fi, err := os.Stat(*task.Dir)
 	if err != nil {
-		return nil, newErr("invalid directory", err)
+		return nil, errors.InvalidWorkingDirectory{Context: errctx.WithErr(err)}
 	}
 
 	if !fi.IsDir() {
-		return nil, newErr("invalid working directory", fmt.Errorf("path (%s), is not a directory", *task.Dir))
+		return nil, errors.InvalidWorkingDirectory{Context: errctx.WithErr(fmt.Errorf("path (%s), is not a directory", *task.Dir))}
 	}
 
 	dotenvPaths, err := resolveDotEnvFiles(filepath.Dir(rf.attrs.RunfilePath), task.DotEnv...)
 	if err != nil {
-		return nil, newErr("while resolving dotenv paths", err)
+		return nil, errors.InvalidDotEnv{Context: errctx.WithErr(err).WithMessage("failed to resolve dotenv paths")}
 	}
 
 	dotenvVars, err := parseDotEnvFiles(dotenvPaths...)
 	if err != nil {
-		return nil, newErr("while parsing dotenv files", err)
+		return nil, errors.InvalidDotEnv{Context: errctx.WithErr(err).WithMessage("failed to parse dotenv files")}
 	}
 
 	env := make([]string, 0, len(os.Environ())+len(dotenvVars))
@@ -85,11 +107,11 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 
 	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
 	envVars, err := parseEnvVars(ctx, task.Env, EvaluationArgs{
-		Shell:   task.Shell,
-		Environ: env,
+		Shell: task.Shell,
+		Env:   dotenvVars,
 	})
 	if err != nil {
-		return nil, newErr("while evaluating task env vars", err)
+		return nil, errors.InvalidEnvVar{Context: errctx.WithErr(err).WithMessage("failed to parse/evaluate env vars")}
 	}
 
 	for k, v := range envVars {
@@ -100,7 +122,7 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 	for i := range task.Commands {
 		c2, err := parseCommand(rf, task.Commands[i])
 		if err != nil {
-			return nil, newErr("while parsing command", err)
+			return nil, errors.IncorrectCommand{Context: errctx.WithErr(err).WithMessage(fmt.Sprintf("failed to parse command: %+v", task.Commands[i]))}
 		}
 		commands = append(commands, *c2)
 	}
