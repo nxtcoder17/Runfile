@@ -20,6 +20,10 @@ func TestParseTask(t *testing.T) {
 	}
 
 	areEqual := func(t *testing.T, got, want *ParsedTask) bool {
+		if want == nil {
+			return false
+		}
+
 		if strings.Join(got.Shell, ",") != strings.Join(want.Shell, ",") {
 			t.Logf("shell not equal")
 			return false
@@ -55,12 +59,177 @@ func TestParseTask(t *testing.T) {
 	fmt.Fprintf(dotenvTestFile, "hello=world\n")
 	dotenvTestFile.Close()
 
-	tests := []struct {
+	type test struct {
 		name    string
 		args    args
 		want    *ParsedTask
 		wantErr bool
-	}{
+	}
+
+	testRequires := []test{
+		{
+			name: "[requires] condition specified, but it neither has 'sh' or 'gotmpl' key",
+			args: args{
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							Shell:           nil,
+							ignoreSystemEnv: true,
+							Requires: []*Requires{
+								{},
+							},
+							Commands: nil,
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Commands:   []CommandJson{},
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "[requires] condition specified, with gotmpl key",
+			args: args{
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							Shell:           nil,
+							ignoreSystemEnv: true,
+							Requires: []*Requires{
+								{
+									GoTmpl: fn.New(`eq 5 5`),
+								},
+							},
+							Commands: nil,
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Commands:   []CommandJson{},
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "[requires] condition specified, with sh key",
+			args: args{
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							Shell:           nil,
+							ignoreSystemEnv: true,
+							Requires: []*Requires{
+								{
+									Sh: fn.New(`echo hello`),
+								},
+							},
+							Commands: nil,
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Commands:   []CommandJson{},
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "[unhappy/requires] condition specified, with sh key",
+			args: args{
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							Shell:           nil,
+							ignoreSystemEnv: true,
+							Requires: []*Requires{
+								{
+									Sh: fn.New(`echo hello && exit 1`),
+								},
+							},
+							Commands: nil,
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Commands:   []CommandJson{},
+			},
+			wantErr: true,
+		},
+	}
+
+	testEnviroments := []test{
+		{
+			name: "[unhappy/env] required env, not provided",
+			args: args{
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Env: EnvVar{
+								"hello": map[string]any{
+									"required": true,
+								},
+							},
+							Commands: nil,
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "[env] required env, provided",
+			args: args{
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Env: EnvVar{
+								"hello": map[string]any{
+									"required": true,
+								},
+							},
+							DotEnv: []string{
+								dotenvTestFile.Name(),
+							},
+							Commands: nil,
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Environ: []string{
+					"hello=world",
+				},
+				Commands: []CommandJson{},
+			},
+			wantErr: false,
+		},
+	}
+
+	tests := []test{
 		{
 			name: "[shell] if not specified, defaults to [sh, -c]",
 			args: args{
@@ -464,6 +633,9 @@ echo "hi"
 			wantErr: true,
 		},
 	}
+
+	tests = append(tests, testRequires...)
+	tests = append(tests, testEnviroments...)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

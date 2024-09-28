@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -85,7 +86,10 @@ type RunArgs struct {
 func (rf *Runfile) Run(ctx context.Context, args RunArgs) error {
 	for _, v := range args.Tasks {
 		if _, ok := rf.Tasks[v]; !ok {
-			return ErrTaskNotFound{TaskName: v, RunfilePath: rf.attrs.RunfilePath}
+			return errors.TaskNotFound{Context: errors.Context{
+				Task:    v,
+				Runfile: rf.attrs.RunfilePath,
+			}}
 		}
 	}
 

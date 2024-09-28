@@ -3,6 +3,7 @@ module github.com/nxtcoder17/runfile
 go 1.22.7
 
 require (
+	github.com/go-task/slim-sprig/v3 v3.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/nxtcoder17/fwatcher v1.0.1
 	github.com/urfave/cli/v3 v3.0.0-alpha9
