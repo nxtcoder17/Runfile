@@ -81,15 +81,22 @@ type RunArgs struct {
 	ExecuteInParallel bool
 	Watch             bool
 	Debug             bool
+	KVs               map[string]string
 }
 
-func (rf *Runfile) Run(ctx context.Context, args RunArgs) error {
-	for _, v := range args.Tasks {
-		if _, ok := rf.Tasks[v]; !ok {
+func (rf *Runfile) Run(ctx Context, args RunArgs) error {
+	for _, taskName := range args.Tasks {
+		task, ok := rf.Tasks[taskName]
+		if !ok {
 			return errors.TaskNotFound{Context: errors.Context{
-				Task:    v,
+				Task:    taskName,
 				Runfile: rf.attrs.RunfilePath,
 			}}
+		}
+
+		// INFO: adding parsed KVs as environments to the specified tasks
+		for k, v := range args.KVs {
+			task.Env[k] = v
 		}
 	}
 
