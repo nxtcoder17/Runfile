@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"text/template"
@@ -12,6 +13,20 @@ import (
 	sprig "github.com/go-task/slim-sprig/v3"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 )
+
+type Context struct {
+	context.Context
+	*slog.Logger
+}
+
+func NewContext(ctx context.Context, logger *slog.Logger) Context {
+	lgr := logger
+	if lgr == nil {
+		lgr = slog.Default()
+	}
+
+	return Context{Context: ctx, Logger: lgr}
+}
 
 type EvaluationArgs struct {
 	Shell []string

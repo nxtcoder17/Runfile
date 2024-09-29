@@ -24,9 +24,11 @@ Create a `Runfile` in the root of your project, and add tasks to it.
 - [x] Run tasks with Key-Value environment variables
 - [x] Run tasks with dynamic environment variables (by shell execution)
 - [x] Run tasks with dotenv files as their environment variables
-- [ ] Running tasks in different working directory [reference](https://taskfile.dev/reference/schema/#task)
+- [x] Running tasks in different working directory [reference](https://taskfile.dev/reference/schema/#task)
+- [x] Running tasks in parallel
 - [ ] Running tasks with watch mode
-- [ ] Running tasks in parallel
+- [x] Requirements prior to running a target
+- [x] Environment validations and default value
 
 ### Example
 
