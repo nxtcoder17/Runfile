@@ -123,7 +123,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |+
-          gh release upload $IMAGE_TAG -R ${{github.repository}} ${{github.workspace}}/upload/binaries/*
+          extra_args=""
+          if [ "$IMAGE_TAG" = "nightly" ]; then
+            extra_args="--clobber"
+          fi
+          gh release upload $IMAGE_TAG -R ${{github.repository}} $extra_args ${{github.workspace}}/upload/binaries/*
 
       - name: mark release as latest
         if: startsWith(github.ref, 'refs/tags/')
