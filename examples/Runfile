@@ -8,31 +8,43 @@ tasks:
       k2: 'f"\( asfsadfssdfas asfd $Asdfasdfa'
       k3:
         sh: echo -n "hello"
+      k4:
+        required: true
     dotenv:
-      - .secrets/env
+      - ../.secrets/env
     cmd: 
-      - echo "hi hello"
-      - echo "value of k1 is '$k1'"
-      - echo "value of k2 is '$k2'"
-      - echo "value of k3 is '$k3'"
-      - echo "value of key_id (from .dotenv) is '$key_id', ${#key_id}"
+      # - sleep 5
+      # - echo "hi hello"
+      # - echo "value of k1 is '$k1'"
+      # - echo "value of k2 is '$k2'"
+      # - echo "value of k3 is '$k3'"
+      # - echo "value of key_id (from .dotenv) is '$key_id', ${#key_id}"
+      - echo "hello from cook"
 
   clean:
     name: clean
     shell: ["python", "-c"]
     dotenv:
-      - .secrets/env
+      - ../.secrets/env
     cmd:
+      - run: laundry
+        # vars:
+        #   k1: v1
       - |+
         import secrets
         import os
-        print(os.environ['key_id'])
-        # print(secrets.token_hex(32))
+        import time
+        # print("key_id from env: ", os.environ['key_id'])
+        time.sleep(2)
+        print("hello from clean")
+        print(secrets.token_hex(32))
+
   laundry:
     name: laundry
     shell: ["node", "-e"]
     cmd: 
-      - console.log("laundry")
+      - run: cook
+      - console.log("hello from laundry")
   eat:
     name: eat
     cmd: 

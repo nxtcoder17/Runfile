@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/nxtcoder17/fwatcher/pkg/logging"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/urfave/cli/v3"
 )
@@ -26,6 +27,23 @@ func main() {
 				Aliases: []string{"f"},
 				Value:   "",
 			},
+
+			&cli.BoolFlag{
+				Name:    "parallel",
+				Aliases: []string{"p"},
+				Value:   false,
+			},
+
+			&cli.BoolFlag{
+				Name:    "watch",
+				Aliases: []string{"w"},
+				Value:   false,
+			},
+
+			&cli.BoolFlag{
+				Name:  "debug",
+				Value: false,
+			},
 		},
 		EnableShellCompletion: true,
 		ShellComplete: func(ctx context.Context, c *cli.Command) {
@@ -38,7 +56,7 @@ func main() {
 				panic(err)
 			}
 
-			runfile, err := runfile.ParseRunFile(runfilePath)
+			runfile, err := runfile.Parse(runfilePath)
 			if err != nil {
 				panic(err)
 			}
@@ -48,11 +66,18 @@ func main() {
 			}
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
-			if c.Args().Len() > 1 {
-				return fmt.Errorf("too many arguments")
-			}
-			if c.Args().Len() != 1 {
-				return fmt.Errorf("missing argument")
+			parallel := c.Bool("parallel")
+			watch := c.Bool("watch")
+			debug := c.Bool("debug")
+
+			logging.NewSlogLogger(logging.SlogOptions{
+				ShowCaller:         debug,
+				ShowDebugLogs:      debug,
+				SetAsDefaultLogger: true,
+			})
+
+			if c.Args().Len() < 1 {
+				return fmt.Errorf("missing argument, at least one argument is required")
 			}
 
 			runfilePath, err := locateRunfile(c)
@@ -60,13 +85,41 @@ func main() {
 				return err
 			}
 
-			runfile, err := runfile.ParseRunFile(runfilePath)
+			rf, err := runfile.Parse(runfilePath)
 			if err != nil {
 				panic(err)
 			}
 
-			s := c.Args().First()
-			return runfile.Run(ctx, s)
+			args := make([]string, 0, len(c.Args().Slice()))
+			for _, arg := range c.Args().Slice() {
+				if arg == "-p" || arg == "--parallel" {
+					parallel = true
+					continue
+				}
+
+				if arg == "-w" || arg == "--watch" {
+					watch = true
+					continue
+				}
+
+				if arg == "--debug" {
+					debug = true
+					continue
+				}
+
+				args = append(args, arg)
+			}
+
+			if parallel && watch {
+				return fmt.Errorf("parallel and watch can't be set together")
+			}
+
+			return rf.Run(ctx, runfile.RunArgs{
+				Tasks:             args,
+				ExecuteInParallel: parallel,
+				Watch:             watch,
+				Debug:             debug,
+			})
 		},
 	}
 

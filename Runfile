@@ -11,6 +11,11 @@ tasks:
         echo "DONE"
 
   example:
+    dir: ./examples
     cmd: 
       - |+
-        run -f ./examples/Runfile cook
+        run cook clean
+
+  test:
+    cmd:
+      - go test -json ./pkg/runfile | gotestfmt
