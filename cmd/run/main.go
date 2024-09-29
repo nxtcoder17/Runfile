@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/nxtcoder17/fwatcher/pkg/logging"
@@ -70,7 +71,7 @@ func main() {
 			watch := c.Bool("watch")
 			debug := c.Bool("debug")
 
-			logging.NewSlogLogger(logging.SlogOptions{
+			logger := logging.NewSlogLogger(logging.SlogOptions{
 				ShowCaller:         debug,
 				ShowDebugLogs:      debug,
 				SetAsDefaultLogger: true,
@@ -90,6 +91,9 @@ func main() {
 				panic(err)
 			}
 
+			kv := make(map[string]string)
+
+			// INFO: for supporting flags that have been suffixed post arguments
 			args := make([]string, 0, len(c.Args().Slice()))
 			for _, arg := range c.Args().Slice() {
 				if arg == "-p" || arg == "--parallel" {
@@ -107,6 +111,12 @@ func main() {
 					continue
 				}
 
+				sp := strings.SplitN(arg, "=", 2)
+				if len(sp) == 2 {
+					kv[sp[0]] = sp[1]
+					continue
+				}
+
 				args = append(args, arg)
 			}
 
@@ -114,11 +124,12 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			return rf.Run(ctx, runfile.RunArgs{
+			return rf.Run(runfile.NewContext(ctx, logger), runfile.RunArgs{
 				Tasks:             args,
 				ExecuteInParallel: parallel,
 				Watch:             watch,
 				Debug:             debug,
+				KVs:               kv,
 			})
 		},
 	}

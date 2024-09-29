@@ -115,7 +115,7 @@ jobs:
           gh release list -R ${{ github.repository }}  | grep -i $IMAGE_TAG
           exit_code=$?
           if [ $exit_code -ne 0 ]; then
-            gh release create $IMAGE_TAG -R ${{ github.repository }} --generate-notes --prerelease
+            gh release create $IMAGE_TAG -R ${{ github.repository }} --generate-notes --prerelease --draft=false
           fi
 
       - name: upload to github release
