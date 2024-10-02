@@ -18,6 +18,7 @@ Object values with `sh` key, such that the output of this command will be the va
 type EnvVar map[string]any
 
 type Task struct {
+	Name string `json:"-"`
 	// Shell in which above commands will be executed
 	// Default: ["sh", "-c"]
 	/* Common Usecases could be:

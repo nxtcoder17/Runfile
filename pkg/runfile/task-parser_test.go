@@ -3,9 +3,9 @@ package runfile
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -29,12 +29,19 @@ func TestParseTask(t *testing.T) {
 			return false
 		}
 
-		slices.Sort(got.Environ)
-		slices.Sort(want.Environ)
-
-		if strings.Join(got.Environ, ",") != strings.Join(want.Environ, ",") {
-			t.Logf("environ not equal")
+		if len(got.Env) != len(want.Env) {
+			t.Logf("environments not equal")
 			return false
+		}
+
+		gkeys := fn.MapKeys(got.Env)
+
+		for _, k := range gkeys {
+			v, ok := want.Env[k]
+			if !ok || v != got.Env[k] {
+				t.Logf("environments not equal")
+				return false
+			}
 		}
 
 		if got.WorkingDir != want.WorkingDir {
@@ -220,8 +227,8 @@ func TestParseTask(t *testing.T) {
 			want: &ParsedTask{
 				Shell:      []string{"sh", "-c"},
 				WorkingDir: fn.Must(os.Getwd()),
-				Environ: []string{
-					"hello=world",
+				Env: map[string]string{
+					"hello": "world",
 				},
 				Commands: []CommandJson{},
 			},
@@ -298,9 +305,9 @@ func TestParseTask(t *testing.T) {
 			},
 			want: &ParsedTask{
 				Shell: []string{"sh", "-c"},
-				Environ: []string{
-					"hello=hi",
-					"k1=1",
+				Env: map[string]string{
+					"hello": "hi",
+					"k1":    "1",
 				},
 				WorkingDir: ".",
 				Commands:   []CommandJson{},
@@ -329,8 +336,8 @@ func TestParseTask(t *testing.T) {
 			},
 			want: &ParsedTask{
 				Shell: []string{"sh", "-c"},
-				Environ: []string{
-					"hello=hi",
+				Env: map[string]string{
+					"hello": "hi",
 				},
 				WorkingDir: ".",
 				Commands:   []CommandJson{},
@@ -393,8 +400,8 @@ func TestParseTask(t *testing.T) {
 			want: &ParsedTask{
 				Shell:      []string{"sh", "-c"},
 				WorkingDir: fn.Must(os.Getwd()),
-				Environ: []string{
-					"hello=world", // from dotenv
+				Env: map[string]string{
+					"hello": "world",
 				},
 				Commands: []CommandJson{},
 			},
@@ -639,9 +646,17 @@ echo "hi"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTask(context.TODO(), tt.args.rf, tt.args.taskName)
+			var task *Task
+			v, ok := tt.args.rf.Tasks[tt.args.taskName]
+			if !ok {
+				task = nil
+			} else {
+				task = &v
+			}
+
+			got, err := ParseTask(NewContext(context.TODO(), slog.Default()), tt.args.rf, task)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseTask() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ParseTask(), got = %v, error = %v, wantErr %v", got, err, tt.wantErr)
 				return
 			}
 

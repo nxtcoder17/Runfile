@@ -1,6 +1,13 @@
 # vim: set ft=yaml:
 version: 0.0.1
 
+includes:
+  file1: 
+    runfile: ./run1/Runfile
+    # dir: ../
+  run2: 
+    runfile: ./run2/Runfile
+
 tasks:
   cook:
     env:
@@ -10,6 +17,11 @@ tasks:
         sh: echo -n "hello"
       k4:
         required: true
+      k5:
+        default:
+          # value: "this is default value"
+          # sh: echo this should be the default value
+          gotmpl: len "asdfadf"
     dotenv:
       - ../.secrets/env
     cmd: 
@@ -20,6 +32,7 @@ tasks:
       # - echo "value of k3 is '$k3'"
       # - echo "value of key_id (from .dotenv) is '$key_id', ${#key_id}"
       - echo "hello from cook"
+      - echo "k5 is $k5"
 
   clean:
     name: clean
@@ -47,6 +60,10 @@ tasks:
       - console.log("hello from laundry")
   eat:
     name: eat
+    env:
+      item: asdfasfd
+    requires:
+      - gotmpl: gt (len "sdfsdfas") 5
     cmd: 
       - echo "eat"
   sleep:

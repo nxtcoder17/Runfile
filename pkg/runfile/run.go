@@ -1,7 +1,7 @@
 package runfile
 
 import (
-	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -22,7 +22,7 @@ type cmdArgs struct {
 	stderr io.Writer
 }
 
-func createCommand(ctx context.Context, args cmdArgs) *exec.Cmd {
+func createCommand(ctx Context, args cmdArgs) *exec.Cmd {
 	if args.shell == nil {
 		args.shell = []string{"sh", "-c"}
 	}
@@ -40,23 +40,47 @@ func createCommand(ctx context.Context, args cmdArgs) *exec.Cmd {
 	cargs := append(args.shell[1:], args.cmd)
 	c := exec.CommandContext(ctx, shell, cargs...)
 	c.Dir = args.workingDir
-	c.Env = args.env
+	c.Env = append(os.Environ(), args.env...)
 	c.Stdout = args.stdout
 	c.Stderr = args.stderr
 	return c
 }
 
-func (rf *Runfile) runTask(ctx context.Context, taskName string) error {
-	pt, err := ParseTask(ctx, rf, taskName)
+type runTaskArgs struct {
+	taskName     string
+	envOverrides map[string]string
+}
+
+func (rf *Runfile) runTask(ctx Context, args runTaskArgs) error {
+	logger := ctx.Logger.With("runfile", rf.attrs.RunfilePath, "task", args.taskName, "env:overrides", args.envOverrides)
+	logger.Debug("running task")
+	task, ok := rf.Tasks[args.taskName]
+	if !ok {
+		return errors.TaskNotFound{Context: errors.Context{Runfile: rf.attrs.RunfilePath, Task: args.taskName}}
+	}
+
+	task.Name = args.taskName
+	if task.Env == nil {
+		task.Env = make(EnvVar)
+	}
+	for k, v := range args.envOverrides {
+		task.Env[k] = v
+	}
+	pt, err := ParseTask(ctx, rf, &task)
 	if err != nil {
 		return err
 	}
 
-	// slog.Default().Info("parsing", "task", pt)
+	// envVars := append(pt.Environ, args.envOverrides...)
+	ctx.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides, "task", args.taskName)
 
 	for _, command := range pt.Commands {
 		if command.Run != "" {
-			if err := rf.runTask(ctx, command.Run); err != nil {
+			if err := rf.runTask(ctx, runTaskArgs{
+				taskName:     command.Run,
+				envOverrides: pt.Env,
+				// envOverrides: append(pt.Environ, args.envOverrides...),
+			}); err != nil {
 				return err
 			}
 			continue
@@ -64,7 +88,7 @@ func (rf *Runfile) runTask(ctx context.Context, taskName string) error {
 
 		cmd := createCommand(ctx, cmdArgs{
 			shell:      pt.Shell,
-			env:        pt.Environ,
+			env:        ToEnviron(pt.Env),
 			cmd:        command.Command,
 			workingDir: pt.WorkingDir,
 		})
@@ -85,7 +109,21 @@ type RunArgs struct {
 }
 
 func (rf *Runfile) Run(ctx Context, args RunArgs) error {
+	ctx.Debug("run", "tasks", args.Tasks)
+	includes, err := rf.ParseIncludes()
+	if err != nil {
+		return err
+	}
+
 	for _, taskName := range args.Tasks {
+		for k, v := range includes {
+			for tn := range v.Runfile.Tasks {
+				if taskName == fmt.Sprintf("%s:%s", k, tn) {
+					return v.Runfile.runTask(ctx, runTaskArgs{taskName: tn})
+				}
+			}
+		}
+
 		task, ok := rf.Tasks[taskName]
 		if !ok {
 			return errors.TaskNotFound{Context: errors.Context{
@@ -96,17 +134,23 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) error {
 
 		// INFO: adding parsed KVs as environments to the specified tasks
 		for k, v := range args.KVs {
+			if task.Env == nil {
+				task.Env = EnvVar{}
+			}
 			task.Env[k] = v
 		}
+
+		rf.Tasks[taskName] = task
 	}
 
 	if args.ExecuteInParallel {
 		slog.Default().Debug("running in parallel mode", "tasks", args.Tasks)
 		g := new(errgroup.Group)
 
-		for _, tn := range args.Tasks {
+		for _, _tn := range args.Tasks {
+			tn := _tn
 			g.Go(func() error {
-				return rf.runTask(ctx, tn)
+				return rf.runTask(ctx, runTaskArgs{taskName: tn})
 			})
 		}
 
@@ -119,7 +163,7 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) error {
 	}
 
 	for _, tn := range args.Tasks {
-		if err := rf.runTask(ctx, tn); err != nil {
+		if err := rf.runTask(ctx, runTaskArgs{taskName: tn}); err != nil {
 			return err
 		}
 	}
