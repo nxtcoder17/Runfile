@@ -6,6 +6,8 @@ import (
 )
 
 type Context struct {
+	Verbose bool
+
 	Task    string
 	Runfile string
 
@@ -24,6 +26,13 @@ func (c Context) WithErr(err error) Context {
 }
 
 func (c Context) ToString() string {
+	if !c.Verbose {
+		if c.message != nil {
+			return fmt.Sprintf("[%s] %s, got err: %v", c.Task, *c.message, c.err)
+		}
+		return fmt.Sprintf("[%s] got err: %v", c.Task, c.err)
+	}
+
 	m := map[string]string{
 		"task":    c.Task,
 		"runfile": c.Runfile,

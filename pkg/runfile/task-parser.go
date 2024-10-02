@@ -2,7 +2,6 @@ package runfile
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,19 +14,19 @@ import (
 )
 
 type ParsedTask struct {
-	Shell      []string      `json:"shell"`
-	WorkingDir string        `json:"workingDir"`
-	Environ    []string      `json:"environ"`
-	Commands   []CommandJson `json:"commands"`
+	Shell      []string          `json:"shell"`
+	WorkingDir string            `json:"workingDir"`
+	Env        map[string]string `json:"environ"`
+	Commands   []CommandJson     `json:"commands"`
 }
 
-func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, error) {
-	errctx := errors.Context{Task: taskName, Runfile: rf.attrs.RunfilePath}
-
-	task, ok := rf.Tasks[taskName]
-	if !ok {
-		return nil, errors.TaskNotFound{Context: errctx}
+// func ParseTask(ctx Context, rf *Runfile, taskName string) (*ParsedTask, error) {
+func ParseTask(ctx Context, rf *Runfile, task *Task) (*ParsedTask, error) {
+	if task == nil {
+		return nil, fmt.Errorf("task does not exist")
 	}
+
+	errctx := errors.Context{Task: task.Name, Runfile: rf.attrs.RunfilePath}
 
 	for _, requirement := range task.Requires {
 		if requirement == nil {
@@ -37,7 +36,7 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 		if requirement.Sh != nil {
 			cmd := createCommand(ctx, cmdArgs{
 				shell:      []string{"sh", "-c"},
-				env:        os.Environ(),
+				env:        nil,
 				workingDir: filepath.Dir(rf.attrs.RunfilePath),
 				cmd:        *requirement.Sh,
 				stdout:     fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
@@ -97,13 +96,15 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 		return nil, errors.InvalidDotEnv{Context: errctx.WithErr(err).WithMessage("failed to parse dotenv files")}
 	}
 
-	env := make([]string, 0, len(os.Environ())+len(dotenvVars))
-	if !task.ignoreSystemEnv {
-		env = append(env, os.Environ()...)
-	}
-	for k, v := range dotenvVars {
-		env = append(env, fmt.Sprintf("%s=%v", k, v))
-	}
+	// env := make([]string, 0, len(os.Environ())+len(dotenvVars))
+	// env := make([]string, 0, len(dotenvVars)+len(task.Env))
+	// env = append(env, task.Environ...)
+	// if !task.ignoreSystemEnv {
+	// 	env = append(env, os.Environ()...)
+	// }
+	// for k, v := range dotenvVars {
+	// 	env = append(env, fmt.Sprintf("%s=%v", k, v))
+	// }
 
 	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
 	envVars, err := parseEnvVars(ctx, task.Env, EvaluationArgs{
@@ -114,9 +115,9 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 		return nil, errors.InvalidEnvVar{Context: errctx.WithErr(err).WithMessage("failed to parse/evaluate env vars")}
 	}
 
-	for k, v := range envVars {
-		env = append(env, fmt.Sprintf("%s=%v", k, v))
-	}
+	// for k, v := range envVars {
+	// 	env = append(env, fmt.Sprintf("%s=%v", k, v))
+	// }
 
 	commands := make([]CommandJson, 0, len(task.Commands))
 	for i := range task.Commands {
@@ -130,7 +131,7 @@ func ParseTask(ctx context.Context, rf *Runfile, taskName string) (*ParsedTask, 
 	return &ParsedTask{
 		Shell:      task.Shell,
 		WorkingDir: *task.Dir,
-		Environ:    env,
+		Env:        fn.MapMerge(dotenvVars, envVars),
 		Commands:   commands,
 	}, nil
 }

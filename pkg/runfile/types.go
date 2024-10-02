@@ -49,7 +49,7 @@ type EnvKV struct {
 	GoTmpl *string `json:"gotmpl"`
 }
 
-func (ejv EnvKV) Parse(ctx context.Context, args EvaluationArgs) (*string, error) {
+func (ejv EnvKV) Parse(ctx Context, args EvaluationArgs) (*string, error) {
 	switch {
 	case ejv.Value != nil:
 		{
@@ -93,7 +93,7 @@ func (ejv EnvKV) Parse(ctx context.Context, args EvaluationArgs) (*string, error
 	}
 }
 
-func parseEnvVars(ctx context.Context, ev EnvVar, args EvaluationArgs) (map[string]string, error) {
+func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]string, error) {
 	env := make(map[string]string, len(ev))
 	for k, v := range ev {
 		switch v := v.(type) {

@@ -15,8 +15,18 @@ type attrs struct {
 type Runfile struct {
 	attrs attrs
 
-	Version string
-	Tasks   map[string]Task `json:"tasks"`
+	Version  string                 `json:"version,omitempty"`
+	Includes map[string]IncludeSpec `json:"includes"`
+	Tasks    map[string]Task        `json:"tasks"`
+}
+
+type IncludeSpec struct {
+	Runfile string `json:"runfile"`
+	Dir     string `json:"dir,omitempty"`
+}
+
+type ParsedIncludeSpec struct {
+	Runfile *Runfile
 }
 
 func Parse(file string) (*Runfile, error) {
@@ -25,11 +35,32 @@ func Parse(file string) (*Runfile, error) {
 	if err != nil {
 		return &runfile, err
 	}
-	err = yaml.Unmarshal(f, &runfile)
-	if err != nil {
+	if err = yaml.Unmarshal(f, &runfile); err != nil {
 		return nil, err
 	}
 
 	runfile.attrs.RunfilePath = fn.Must(filepath.Abs(file))
 	return &runfile, nil
+}
+
+func (rf *Runfile) ParseIncludes() (map[string]ParsedIncludeSpec, error) {
+	m := make(map[string]ParsedIncludeSpec, len(rf.Includes))
+	for k, v := range rf.Includes {
+		r, err := Parse(v.Runfile)
+		if err != nil {
+			return nil, err
+		}
+
+		for it := range r.Tasks {
+			if v.Dir != "" {
+				nt := r.Tasks[it]
+				nt.Dir = &v.Dir
+				r.Tasks[it] = nt
+			}
+		}
+
+		m[k] = ParsedIncludeSpec{Runfile: r}
+	}
+
+	return m, nil
 }
