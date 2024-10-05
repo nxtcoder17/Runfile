@@ -3,7 +3,6 @@ package runfile
 import (
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 
@@ -43,6 +42,7 @@ func createCommand(ctx Context, args cmdArgs) *exec.Cmd {
 	c.Env = append(os.Environ(), args.env...)
 	c.Stdout = args.stdout
 	c.Stderr = args.stderr
+
 	return c
 }
 
@@ -51,12 +51,14 @@ type runTaskArgs struct {
 	envOverrides map[string]string
 }
 
-func (rf *Runfile) runTask(ctx Context, args runTaskArgs) error {
-	logger := ctx.Logger.With("runfile", rf.attrs.RunfilePath, "task", args.taskName, "env:overrides", args.envOverrides)
+func (rf *Runfile) runTask(ctx Context, args runTaskArgs) errors.Message {
+	attr := []any{"task", args.taskName, "runfile", rf.attrs.RunfilePath}
+
+	logger := ctx.With("runfile", rf.attrs.RunfilePath, "task", args.taskName, "env:overrides", args.envOverrides)
 	logger.Debug("running task")
 	task, ok := rf.Tasks[args.taskName]
 	if !ok {
-		return errors.TaskNotFound{Context: errors.Context{Runfile: rf.attrs.RunfilePath, Task: args.taskName}}
+		return errors.TaskNotFound.WithMetadata(attr)
 	}
 
 	task.Name = args.taskName
@@ -66,14 +68,13 @@ func (rf *Runfile) runTask(ctx Context, args runTaskArgs) error {
 	for k, v := range args.envOverrides {
 		task.Env[k] = v
 	}
-	pt, err := ParseTask(ctx, rf, &task)
+	pt, err := ParseTask(ctx, rf, task)
 	if err != nil {
 		return err
 	}
 
 	// envVars := append(pt.Environ, args.envOverrides...)
 	ctx.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides, "task", args.taskName)
-
 	for _, command := range pt.Commands {
 		if command.Run != "" {
 			if err := rf.runTask(ctx, runTaskArgs{
@@ -93,7 +94,7 @@ func (rf *Runfile) runTask(ctx Context, args runTaskArgs) error {
 			workingDir: pt.WorkingDir,
 		})
 		if err := cmd.Run(); err != nil {
-			return err
+			return errors.CommandFailed.WithErr(err).WithMetadata(attr)
 		}
 	}
 
@@ -108,8 +109,7 @@ type RunArgs struct {
 	KVs               map[string]string
 }
 
-func (rf *Runfile) Run(ctx Context, args RunArgs) error {
-	ctx.Debug("run", "tasks", args.Tasks)
+func (rf *Runfile) Run(ctx Context, args RunArgs) errors.Message {
 	includes, err := rf.ParseIncludes()
 	if err != nil {
 		return err
@@ -126,10 +126,7 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) error {
 
 		task, ok := rf.Tasks[taskName]
 		if !ok {
-			return errors.TaskNotFound{Context: errors.Context{
-				Task:    taskName,
-				Runfile: rf.attrs.RunfilePath,
-			}}
+			return errors.TaskNotFound.WithMetadata("task", taskName, "runfile", rf.attrs.RunfilePath)
 		}
 
 		// INFO: adding parsed KVs as environments to the specified tasks
@@ -144,7 +141,7 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) error {
 	}
 
 	if args.ExecuteInParallel {
-		slog.Default().Debug("running in parallel mode", "tasks", args.Tasks)
+		ctx.Debug("running in parallel mode", "tasks", args.Tasks)
 		g := new(errgroup.Group)
 
 		for _, _tn := range args.Tasks {
@@ -156,7 +153,7 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) error {
 
 		// Wait for all tasks to finish
 		if err := g.Wait(); err != nil {
-			return err
+			return errors.TaskFailed.WithErr(err).WithMetadata("task", args.Tasks, "runfile", rf.attrs.RunfilePath)
 		}
 
 		return nil

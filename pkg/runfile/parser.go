@@ -7,28 +7,35 @@ import (
 	"path/filepath"
 
 	"github.com/joho/godotenv"
+	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 )
 
-func parseDotEnv(reader io.Reader) (map[string]string, error) {
-	return godotenv.Parse(reader)
+func parseDotEnv(reader io.Reader) (map[string]string, errors.Message) {
+	m, err := godotenv.Parse(reader)
+	if err != nil {
+		return nil, errors.DotEnvParsingFailed.WithErr(err)
+	}
+	return m, nil
 }
 
 // parseDotEnv parses the .env file and returns a slice of strings as in os.Environ()
-func parseDotEnvFiles(files ...string) (map[string]string, error) {
+
+func parseDotEnvFiles(files ...string) (map[string]string, errors.Message) {
 	results := make(map[string]string)
 
 	for i := range files {
 		if !filepath.IsAbs(files[i]) {
-			return nil, fmt.Errorf("dotenv file path %s, must be absolute", files[i])
+			return nil, errors.DotEnvInvalid.WithErr(fmt.Errorf("dotenv file paths must be absolute")).WithMetadata("dotenv", files[i])
 		}
 
 		f, err := os.Open(files[i])
 		if err != nil {
-			return nil, err
+			return nil, errors.DotEnvInvalid.WithErr(err).WithMetadata("dotenv", files[i])
 		}
-		m, err := parseDotEnv(f)
-		if err != nil {
-			return nil, err
+
+		m, err2 := parseDotEnv(f)
+		if err2 != nil {
+			return nil, err2.WithMetadata("dotenv", files[i])
 		}
 		f.Close()
 
@@ -39,4 +46,26 @@ func parseDotEnvFiles(files ...string) (map[string]string, error) {
 	}
 
 	return results, nil
+}
+
+func ParseIncludes(rf *Runfile) (map[string]ParsedIncludeSpec, errors.Message) {
+	m := make(map[string]ParsedIncludeSpec, len(rf.Includes))
+	for k, v := range rf.Includes {
+		r, err := Parse(v.Runfile)
+		if err != nil {
+			return nil, err
+		}
+
+		for it := range r.Tasks {
+			if v.Dir != "" {
+				nt := r.Tasks[it]
+				nt.Dir = &v.Dir
+				r.Tasks[it] = nt
+			}
+		}
+
+		m[k] = ParsedIncludeSpec{Runfile: r}
+	}
+
+	return m, nil
 }

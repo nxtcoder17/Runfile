@@ -9,23 +9,21 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/nxtcoder17/fwatcher/pkg/logging"
+	"github.com/nxtcoder17/runfile/pkg/logging"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
+	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 	"github.com/urfave/cli/v3"
 )
 
-var (
-	Version      string   = "0.0.1"
-	runfileNames []string = []string{
-		"Runfile",
-		"Runfile.yml",
-		"Runfile.yaml",
-	}
-)
+var Version string = "nightly"
+
+var runfileNames []string = []string{
+	"Runfile",
+	"Runfile.yml",
+	"Runfile.yaml",
+}
 
 func main() {
-	logger := logging.NewSlogLogger(logging.SlogOptions{})
-
 	cmd := cli.Command{
 		Name:        "run",
 		Version:     Version,
@@ -166,7 +164,10 @@ func main() {
 	}()
 
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		logger.Error(err.Error())
+		errm, ok := err.(errors.Message)
+		if ok {
+			errm.Log()
+		}
 		os.Exit(1)
 	}
 }

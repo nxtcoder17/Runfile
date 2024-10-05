@@ -629,16 +629,6 @@ echo "hi"
 			},
 			wantErr: true,
 		},
-		{
-			name: "[unhappy/runfile] target task does not exist",
-			args: args{
-				rf: &Runfile{
-					Tasks: map[string]Task{},
-				},
-				taskName: "test",
-			},
-			wantErr: true,
-		},
 	}
 
 	tests = append(tests, testRequires...)
@@ -646,15 +636,7 @@ echo "hi"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var task *Task
-			v, ok := tt.args.rf.Tasks[tt.args.taskName]
-			if !ok {
-				task = nil
-			} else {
-				task = &v
-			}
-
-			got, err := ParseTask(NewContext(context.TODO(), slog.Default()), tt.args.rf, task)
+			got, err := ParseTask(NewContext(context.TODO(), slog.Default()), tt.args.rf, tt.args.rf.Tasks[tt.args.taskName])
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseTask(), got = %v, error = %v, wantErr %v", got, err, tt.wantErr)
 				return
