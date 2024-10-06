@@ -1,56 +1,71 @@
 package runfile
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"os"
-	"strconv"
-	"strings"
+	"path/filepath"
 
-	"sigs.k8s.io/yaml"
+	"github.com/joho/godotenv"
+	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 )
 
-func ParseRunFile(file string) (*RunFile, error) {
-	var runfile RunFile
-	f, err := os.ReadFile(file)
+func parseDotEnv(reader io.Reader) (map[string]string, errors.Message) {
+	m, err := godotenv.Parse(reader)
 	if err != nil {
-		return &runfile, err
+		return nil, errors.DotEnvParsingFailed.WithErr(err)
 	}
-	err = yaml.Unmarshal(f, &runfile)
-	if err != nil {
-		return &runfile, err
-	}
-	return &runfile, nil
+	return m, nil
 }
 
 // parseDotEnv parses the .env file and returns a slice of strings as in os.Environ()
-func parseDotEnv(files ...string) ([]string, error) {
-	results := make([]string, 0, 5)
+
+func parseDotEnvFiles(files ...string) (map[string]string, errors.Message) {
+	results := make(map[string]string)
 
 	for i := range files {
+		if !filepath.IsAbs(files[i]) {
+			return nil, errors.DotEnvInvalid.WithErr(fmt.Errorf("dotenv file paths must be absolute")).WithMetadata("dotenv", files[i])
+		}
+
 		f, err := os.Open(files[i])
+		if err != nil {
+			return nil, errors.DotEnvInvalid.WithErr(err).WithMetadata("dotenv", files[i])
+		}
+
+		m, err2 := parseDotEnv(f)
+		if err2 != nil {
+			return nil, err2.WithMetadata("dotenv", files[i])
+		}
+		f.Close()
+
+		for k, v := range m {
+			results[k] = v
+		}
+
+	}
+
+	return results, nil
+}
+
+func ParseIncludes(rf *Runfile) (map[string]ParsedIncludeSpec, errors.Message) {
+	m := make(map[string]ParsedIncludeSpec, len(rf.Includes))
+	for k, v := range rf.Includes {
+		r, err := Parse(v.Runfile)
 		if err != nil {
 			return nil, err
 		}
 
-		s := bufio.NewScanner(f)
-		for s.Scan() {
-			s2 := strings.SplitN(s.Text(), "=", 2)
-			if len(s2) != 2 {
-				continue
+		for it := range r.Tasks {
+			if v.Dir != "" {
+				nt := r.Tasks[it]
+				nt.Dir = &v.Dir
+				r.Tasks[it] = nt
 			}
-			s, _ := strconv.Unquote(string(s2[1]))
-
-			// os.Setenv(s2[0], s2[1])
-			os.Setenv(s2[0], s)
-			results = append(results, s2[0])
 		}
+
+		m[k] = ParsedIncludeSpec{Runfile: r}
 	}
 
-	for i := range results {
-		v := os.Getenv(results[i])
-		results[i] = fmt.Sprintf("%s=%v", results[i], v)
-	}
-
-	return results, nil
+	return m, nil
 }

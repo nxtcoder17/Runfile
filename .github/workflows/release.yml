@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - 'v*'
+
+    branches:
+      - master
+
+    paths:
+      - "cmd/run/**"
+      - ".github/**"
+      - "pkg/**"
+      - go.* # go.mod, and go.sum
+      - flake.*
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-binary:
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, macos-14, macos-13]
+        arch: [amd64, arm64]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+
+          - os: macos-13
+            platform: darwin
+
+          - os: macos-14
+            platform: darwin
+        exclude:
+          - os: macos-14
+            arch: amd64
+          - os: macos-13
+            arch: arm64
+
+    name: Building run-${{ matrix.platform }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: nxtcoder17/actions/setup-cache-go@v1
+        with:
+          cache_key: "run-${{ matrix.platform }}-${{ matrix.arch }}"
+          working_directory: .
+
+      - uses: nxtcoder17/actions/generate-image-tag@v1
+
+      - uses: nxtcoder17/actions/setup-nix-cachix@v1
+        with:
+          flake_lock: "./flake.lock"
+          nix_develop_arguments: ".#default"
+          cachix_cache_name: ${{ secrets.CACHIX_CACHE_NAME }}
+          cachix_auth_token:  ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Build Binary
+        shell: bash
+        env:
+          CGO_ENABLED: 0
+        run: |+
+          binary=bin/run-${{ matrix.platform }}-${{ matrix.arch }}
+          go build -o $binary -ldflags="-s -w" -tags urfave_cli_no_docs cmd/run/main.go
+
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            upx $binary
+          fi
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-${{ matrix.platform }}-${{ matrix.arch }}
+          path: bin/*
+
+  release:
+    needs: build-binary
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ github.workspace }}/binaries
+          pattern: "run-*"
+
+      - name: flattening all the executable artifacts
+        shell: bash
+        run: |+
+          ls -R ${{ github.workspace }}/binaries
+          mkdir -p  ${{ github.workspace }}/upload/binaries
+          shopt -s globstar
+          file ./** | grep 'executable,' | awk -F: '{print $1}' | xargs -I {} cp {} ${{ github.workspace }}/upload/binaries
+          shopt -u globstar
+
+      - uses: nxtcoder17/actions/generate-image-tag@v1
+
+      - name: running for master branch
+        if: startsWith(github.ref, 'refs/heads/master')
+        run: |+
+          echo "IMAGE_TAG=nightly" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+
+      - name: ensure github release exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |+
+          set +e
+          gh release list -R ${{ github.repository }}  | grep -i $IMAGE_TAG
+          exit_code=$?
+          if [ $exit_code -ne 0 ]; then
+            gh release create $IMAGE_TAG -R ${{ github.repository }} --generate-notes --prerelease --draft=false
+          fi
+
+      - name: upload to github release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |+
+          extra_args=""
+          if [ "$IMAGE_TAG" = "nightly" ]; then
+            extra_args="--clobber"
+          fi
+          gh release upload $IMAGE_TAG -R ${{github.repository}} $extra_args ${{github.workspace}}/upload/binaries/*
+
+      - name: mark release as latest
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |+
+          gh release edit $IMAGE_TAG -R ${{ github.repository }} --latest

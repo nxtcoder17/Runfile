@@ -26,6 +26,8 @@
             go_1_22
 
             upx
+
+            gotestfmt
           ];
 
           shellHook = ''
