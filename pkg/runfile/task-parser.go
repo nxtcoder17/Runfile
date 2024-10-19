@@ -21,6 +21,21 @@ type ParsedTask struct {
 
 // func ParseTask(ctx Context, rf *Runfile, taskName string) (*ParsedTask, error) {
 func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
+	globalEnv := make(map[string]string)
+
+	if rf.Env != nil {
+		genv, err := parseEnvVars(ctx, rf.Env, EvaluationArgs{
+			Shell: nil,
+			Env:   nil,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range genv {
+			globalEnv[k] = v
+		}
+	}
+
 	for _, requirement := range task.Requires {
 		if requirement == nil {
 			continue
@@ -29,7 +44,7 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 		if requirement.Sh != nil {
 			cmd := createCommand(ctx, cmdArgs{
 				shell:      []string{"sh", "-c"},
-				env:        nil,
+				env:        ToEnviron(globalEnv),
 				workingDir: filepath.Dir(rf.attrs.RunfilePath),
 				cmd:        *requirement.Sh,
 				stdout:     fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
@@ -79,20 +94,20 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 		return nil, TaskWorkingDirectoryInvalid.WithErr(fmt.Errorf("path is not a directory")).WithMetadata("working-dir", *task.Dir)
 	}
 
-	dotenvPaths, err := resolveDotEnvFiles(filepath.Dir(rf.attrs.RunfilePath), task.DotEnv...)
+	taskDotEnvPaths, err := resolveDotEnvFiles(filepath.Dir(rf.attrs.RunfilePath), task.DotEnv...)
 	if err != nil {
 		return nil, err
 	}
 
-	dotenvVars, err := parseDotEnvFiles(dotenvPaths...)
+	taskDotenvVars, err := parseDotEnvFiles(taskDotEnvPaths...)
 	if err != nil {
 		return nil, err
 	}
 
 	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
-	envVars, err := parseEnvVars(ctx, task.Env, EvaluationArgs{
+	taskEnvVars, err := parseEnvVars(ctx, task.Env, EvaluationArgs{
 		Shell: task.Shell,
-		Env:   dotenvVars,
+		Env:   fn.MapMerge(globalEnv, taskDotenvVars),
 	})
 	if err != nil {
 		return nil, err
@@ -110,7 +125,7 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 	return &ParsedTask{
 		Shell:      task.Shell,
 		WorkingDir: *task.Dir,
-		Env:        fn.MapMerge(dotenvVars, envVars),
+		Env:        fn.MapMerge(globalEnv, taskDotenvVars, taskEnvVars),
 		Commands:   commands,
 	}, nil
 }

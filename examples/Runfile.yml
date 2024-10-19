@@ -8,6 +8,9 @@ includes:
   run2: 
     runfile: ./run2/Runfile
 
+env:
+  global_k1: "v1"
+
 tasks:
   cook:
     env:
