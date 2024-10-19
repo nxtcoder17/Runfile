@@ -32,6 +32,7 @@ tasks:
       # - echo "value of k3 is '$k3'"
       # - echo "value of key_id (from .dotenv) is '$key_id', ${#key_id}"
       - echo "hello from cook"
+      - echo "k4 is $k4"
       - echo "k5 is $k5"
 
   clean:
@@ -48,16 +49,23 @@ tasks:
         import os
         import time
         # print("key_id from env: ", os.environ['key_id'])
-        time.sleep(2)
+        # time.sleep(2)
         print("hello from clean")
         print(secrets.token_hex(32))
 
   laundry:
     name: laundry
     shell: ["node", "-e"]
+    env:
+      k4:
+        default:
+          sh: |+
+           console.log('1234' == '23344')
     cmd: 
       - run: cook
+      - console.log(process.env.k4)
       - console.log("hello from laundry")
+
   eat:
     name: eat
     env:
@@ -73,4 +81,5 @@ tasks:
   code:
     name: code
     cmd:
-      - echo "code"
+      - echo "writing to stdout" 
+      - echo "writing to stderr" 1>&2

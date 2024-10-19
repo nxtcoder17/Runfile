@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -11,7 +13,6 @@ import (
 
 	"github.com/nxtcoder17/runfile/pkg/logging"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
-	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 	"github.com/urfave/cli/v3"
 )
 
@@ -23,6 +24,18 @@ var runfileNames []string = []string{
 	"Runfile.yaml",
 }
 
+//go:embed completions/fish/run.fish
+var shellCompletionFISH string
+
+//go:embed completions/bash/run.bash
+var shellCompletionBASH string
+
+//go:embed completions/zsh/run.zsh
+var shellCompletionZSH string
+
+//go:embed completions/ps/run.ps
+var shellCompletionPS string
+
 func main() {
 	cmd := cli.Command{
 		Name:        "run",
@@ -30,9 +43,10 @@ func main() {
 		Description: "A simple task runner",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "file",
-				Aliases: []string{"f"},
-				Value:   "",
+				Name:      "file",
+				Aliases:   []string{"f"},
+				TakesFile: true,
+				Value:     "",
 			},
 
 			&cli.BoolFlag{
@@ -51,8 +65,16 @@ func main() {
 				Name:  "debug",
 				Value: false,
 			},
+
+			&cli.BoolFlag{
+				Name:    "list",
+				Value:   false,
+				Aliases: []string{"ls"},
+			},
 		},
+		// ShellCompletionCommandName: "completion:shell",
 		EnableShellCompletion: true,
+		// DefaultCommand:             "help",
 		ShellComplete: func(ctx context.Context, c *cli.Command) {
 			if c.NArg() > 0 {
 				return
@@ -60,33 +82,26 @@ func main() {
 
 			runfilePath, err := locateRunfile(c)
 			if err != nil {
+				slog.Error("locating runfile", "err", err)
 				panic(err)
 			}
 
-			runfile, err := runfile.Parse(runfilePath)
-			if err != nil {
-				panic(err)
-			}
-
-			for k := range runfile.Tasks {
-				fmt.Fprintf(c.Root().Writer, "%s\n", k)
-			}
-
-			m, err := runfile.ParseIncludes()
-			if err != nil {
-				panic(err)
-			}
-
-			for k, v := range m {
-				for tn := range v.Runfile.Tasks {
-					fmt.Fprintf(c.Root().Writer, "%s:%s\n", k, tn)
-				}
-			}
+			generateShellCompletion(ctx, c.Root().Writer, runfilePath)
 		},
 		Action: func(ctx context.Context, c *cli.Command) error {
 			parallel := c.Bool("parallel")
 			watch := c.Bool("watch")
 			debug := c.Bool("debug")
+
+			showList := c.Bool("list")
+			if showList {
+				runfilePath, err := locateRunfile(c)
+				if err != nil {
+					slog.Error("locating runfile, got", "err", err)
+					return err
+				}
+				return generateShellCompletion(ctx, c.Root().Writer, runfilePath)
+			}
 
 			if c.NArg() == 0 {
 				c.Command("help").Run(ctx, nil)
@@ -95,12 +110,14 @@ func main() {
 
 			runfilePath, err := locateRunfile(c)
 			if err != nil {
+				slog.Error("locating runfile, got", "err", err)
 				return err
 			}
 
-			rf, err := runfile.Parse(runfilePath)
-			if err != nil {
-				panic(err)
+			rf, err2 := runfile.Parse(runfilePath)
+			if err2 != nil {
+				slog.Error("parsing runfile, got", "err", err2)
+				panic(err2)
 			}
 
 			kv := make(map[string]string)
@@ -136,8 +153,8 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			logger := logging.NewSlogLogger(logging.SlogOptions{
-				ShowCaller:         debug,
+			logger := logging.New(logging.Options{
+				SlogKeyAsPrefix:    "task",
 				ShowDebugLogs:      debug,
 				SetAsDefaultLogger: true,
 			})
@@ -150,23 +167,49 @@ func main() {
 				KVs:               kv,
 			})
 		},
+		Commands: []*cli.Command{
+			{
+				Name: "shell:completion",
+				Action: func(ctx context.Context, c *cli.Command) error {
+					if c.NArg() != 2 {
+						return fmt.Errorf("needs argument one of [bash,zsh,fish,ps]")
+					}
+
+					switch c.Args().Slice()[1] {
+					case "fish":
+						fmt.Fprint(c.Writer, shellCompletionFISH)
+					case "bash":
+						fmt.Fprint(c.Writer, shellCompletionBASH)
+					case "zsh":
+						fmt.Fprint(c.Writer, shellCompletionZSH)
+					case "ps":
+						fmt.Fprint(c.Writer, shellCompletionPS)
+					}
+
+					return nil
+				},
+			},
+		},
 	}
 
-	ctx, cf := context.WithCancel(context.TODO())
+	ctx, cf := signal.NotifyContext(context.TODO(), os.Interrupt, syscall.SIGTERM)
+	defer cf()
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
-		<-c
-		fmt.Println("\n\rcanceling...")
+		<-ctx.Done()
 		cf()
 		os.Exit(1)
 	}()
 
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		errm, ok := err.(errors.Message)
+		errm, ok := err.(*runfile.Error)
+		slog.Debug("got", "err", err)
 		if ok {
-			errm.Log()
+			if errm != nil {
+				errm.Log()
+			}
+		} else {
+			slog.Error("got", "err", err)
 		}
 		os.Exit(1)
 	}
