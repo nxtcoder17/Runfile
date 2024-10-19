@@ -1,81 +1,106 @@
 package logging
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/log"
+	"github.com/phuslu/log"
 )
 
-type SlogOptions struct {
-	Writer io.Writer
+type Options struct {
 	Prefix string
+	Writer io.Writer
+
+	Theme *Theme
 
 	ShowTimestamp bool
 	ShowCaller    bool
 	ShowDebugLogs bool
+	ShowLogLevel  bool
 
 	SetAsDefaultLogger bool
+
+	// PickPrefix func() string
+	SlogKeyAsPrefix string
+
+	// constants
+	keyValueSeparator string
 }
 
-func NewSlogLogger(opts SlogOptions) *slog.Logger {
-	// INFO: force colored output, otherwise honor the env-var `CLICOLOR_FORCE`
-	if _, ok := os.LookupEnv("CLICOLOR_FORCE"); !ok {
-		os.Setenv("CLICOLOR_FORCE", "1")
-	}
-
+func (opts Options) WithDefaults() Options {
 	if opts.Writer == nil {
 		opts.Writer = os.Stderr
 	}
 
-	level := log.InfoLevel
-	if opts.ShowDebugLogs {
-		level = log.DebugLevel
+	if opts.Theme == nil {
+		opts.Theme = DefaultTheme()
 	}
 
-	logger := log.NewWithOptions(opts.Writer, log.Options{
-		ReportCaller:    opts.ShowCaller,
-		ReportTimestamp: opts.ShowTimestamp,
-		Prefix:          opts.Prefix,
-		Level:           level,
-	})
+	if opts.keyValueSeparator == "" {
+		opts.keyValueSeparator = "="
+	}
 
-	styles := log.DefaultStyles()
-	// styles.Caller = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Dark: "#5b717f", Light: "#36cbfa"}).Faint(true)
-	styles.Caller = lipgloss.NewStyle().Foreground(lipgloss.Color("#878a8a"))
+	return opts
+}
 
-	styles.Levels[log.ErrorLevel] = lipgloss.NewStyle().
-		SetString("ERROR").
-		Padding(0, 1, 0, 1).
-		// Background(lipgloss.Color("204")).
-		Foreground(lipgloss.Color("202"))
+func New(opts Options) *slog.Logger {
+	opts = opts.WithDefaults()
 
-	styles.Levels[log.DebugLevel] = styles.Levels[log.DebugLevel].Foreground(lipgloss.Color("#5b717f"))
+	writePrefix := func(w io.Writer, args *log.FormatterArgs) {
+		if opts.Prefix != "" {
+			fmt.Fprintf(w, "%s ", opts.Theme.TaskPrefixStyle.Render(opts.Prefix))
+		}
 
-	styles.Levels[log.InfoLevel] = styles.Levels[log.InfoLevel].Foreground(lipgloss.Color("#36cbfa"))
+		for i := range args.KeyValues {
+			if args.KeyValues[i].Key == opts.SlogKeyAsPrefix {
+				fmt.Fprintf(w, "%s ", opts.Theme.LogLevelStyles[ParseLogLevel(args.Level)].Render(fmt.Sprintf("[%s]", args.KeyValues[i].Value)))
+				break
+			}
+		}
+	}
 
-	// BUG: due to a bug in termenv, adaptive colors don't work within tmux
-	// it always selects the dark variant
+	l := log.Logger{
+		Level: func() log.Level {
+			if opts.ShowDebugLogs {
+				return log.DebugLevel
+			}
+			return log.InfoLevel
+		}(),
+		Caller: func() int {
+			if opts.ShowCaller {
+				return 1
+			}
+			return 0
+		}(),
+		// Context: []byte{},
+		Writer: &log.ConsoleWriter{
+			ColorOutput:    false,
+			QuoteString:    true,
+			EndWithMessage: true,
+			Formatter: func(w io.Writer, args *log.FormatterArgs) (int, error) {
+				writePrefix(w, args)
 
-	// styles.Levels[log.InfoLevel] = styles.Levels[log.InfoLevel].Foreground(lipgloss.AdaptiveColor{
-	// 	Light: string(lipgloss.Color("#36cbfa")),
-	// 	Dark:  string(lipgloss.Color("#608798")),
-	// })
+				if opts.ShowLogLevel {
+					fmt.Fprintf(w, "%s ", opts.Theme.LogLevelStyles[ParseLogLevel(args.Level)].Render(args.Level))
+				}
 
-	styles.Key = lipgloss.NewStyle().Foreground(lipgloss.Color("#36cbfa")).Bold(true)
+				fmt.Fprint(w, opts.Theme.MessageStyle.Render(args.Message))
+				for i := range args.KeyValues {
+					if args.KeyValues[i].Key == opts.SlogKeyAsPrefix {
+						continue
+					}
+					fmt.Fprintf(w, " %s%s%v", opts.Theme.SlogKeyStyle.Render(args.KeyValues[i].Key), opts.Theme.SlogKeyStyle.Faint(true).Render(opts.keyValueSeparator), opts.Theme.MessageStyle.Render(args.KeyValues[i].Value))
+				}
 
-	logger.SetStyles(styles)
-
-	// output := termenv.NewOutput(os.Stdout, termenv.WithProfile(termenv.TrueColor))
-	// logger.Info("theme", "fg", output.ForegroundColor(), "bg", output.BackgroundColor(), "has-dark", output.HasDarkBackground())
-
-	l := slog.New(logger)
-
+				return fmt.Fprintf(w, "\n")
+			},
+		},
+	}
+	sl := l.Slog()
 	if opts.SetAsDefaultLogger {
-		slog.SetDefault(l)
+		slog.SetDefault(sl)
 	}
-
-	return l
+	return sl
 }
