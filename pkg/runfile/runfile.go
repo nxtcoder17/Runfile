@@ -5,12 +5,12 @@ import (
 	"path/filepath"
 
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 	"sigs.k8s.io/yaml"
 )
 
 type attrs struct {
-	RunfilePath string
+	RootRunfilePath string
+	RunfilePath     string
 }
 
 type Runfile struct {
@@ -30,24 +30,34 @@ type ParsedIncludeSpec struct {
 	Runfile *Runfile
 }
 
-func Parse(file string) (*Runfile, errors.Message) {
+func Parse(file string) (*Runfile, *Error) {
 	var runfile Runfile
 	f, err := os.ReadFile(file)
 	if err != nil {
-		return &runfile, errors.RunfileReadFailed.WithErr(err).WithMetadata("file", file)
+		return &runfile, RunfileReadFailed.WithErr(err).WithMetadata("file", file)
 	}
 	if err = yaml.Unmarshal(f, &runfile); err != nil {
-		return nil, errors.RunfileParsingFailed.WithErr(err).WithMetadata("file", file)
+		return nil, RunfileParsingFailed.WithErr(err).WithMetadata("file", file)
 	}
 
 	runfile.attrs.RunfilePath = fn.Must(filepath.Abs(file))
+	runfile.attrs.RootRunfilePath = runfile.attrs.RunfilePath
 	return &runfile, nil
 }
 
-func (rf *Runfile) ParseIncludes() (map[string]ParsedIncludeSpec, errors.Message) {
+func (rf *Runfile) parse(file string) (*Runfile, *Error) {
+	r, err := Parse(file)
+	if err != nil {
+		return nil, err
+	}
+	r.attrs.RootRunfilePath = rf.attrs.RunfilePath
+	return r, nil
+}
+
+func (rf *Runfile) ParseIncludes() (map[string]ParsedIncludeSpec, *Error) {
 	m := make(map[string]ParsedIncludeSpec, len(rf.Includes))
 	for k, v := range rf.Includes {
-		r, err := Parse(v.Runfile)
+		r, err := rf.parse(v.Runfile)
 		if err != nil {
 			return nil, err.WithMetadata("includes", v.Runfile)
 		}

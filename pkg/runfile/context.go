@@ -12,15 +12,17 @@ import (
 
 	sprig "github.com/go-task/slim-sprig/v3"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
+	"github.com/nxtcoder17/runfile/pkg/logging"
 )
 
 type Context struct {
 	context.Context
 	*slog.Logger
 
-	RunfilePath string
-	Taskname    string
+	// RunfilePath string
+	// Taskname    string
+
+	theme *logging.Theme
 }
 
 func NewContext(ctx context.Context, logger *slog.Logger) Context {
@@ -29,7 +31,7 @@ func NewContext(ctx context.Context, logger *slog.Logger) Context {
 		lgr = slog.Default()
 	}
 
-	return Context{Context: ctx, Logger: lgr}
+	return Context{Context: ctx, Logger: lgr, theme: logging.DefaultTheme()}
 }
 
 type EvaluationArgs struct {
@@ -53,7 +55,7 @@ type EnvKV struct {
 	GoTmpl *string `json:"gotmpl"`
 }
 
-func (ejv EnvKV) Parse(ctx Context, args EvaluationArgs) (*string, errors.Message) {
+func (ejv EnvKV) Parse(ctx Context, args EvaluationArgs) (*string, *Error) {
 	switch {
 	case ejv.Value != nil:
 		{
@@ -70,7 +72,7 @@ func (ejv EnvKV) Parse(ctx Context, args EvaluationArgs) (*string, errors.Messag
 				stdout: value,
 			})
 			if err := cmd.Run(); err != nil {
-				return nil, errors.TaskEnvCommandFailed.WithErr(err)
+				return nil, TaskEnvCommandFailed.WithErr(err)
 			}
 
 			return fn.New(strings.TrimSpace(value.String())), nil
@@ -80,24 +82,24 @@ func (ejv EnvKV) Parse(ctx Context, args EvaluationArgs) (*string, errors.Messag
 			t := template.New(ejv.Key).Funcs(sprig.FuncMap())
 			t, err := t.Parse(fmt.Sprintf(`{{ %s }}`, *ejv.GoTmpl))
 			if err != nil {
-				return nil, errors.TaskEnvGoTmplFailed.WithErr(err)
+				return nil, TaskEnvGoTmplFailed.WithErr(err)
 			}
 
 			value := new(bytes.Buffer)
 			if err := t.ExecuteTemplate(value, ejv.Key, map[string]string{}); err != nil {
-				return nil, errors.TaskEnvGoTmplFailed.WithErr(err)
+				return nil, TaskEnvGoTmplFailed.WithErr(err)
 			}
 
 			return fn.New(strings.TrimSpace(value.String())), nil
 		}
 	default:
 		{
-			return nil, errors.TaskEnvInvalid.WithErr(fmt.Errorf("failed to parse, unknown format, one of [value, sh, gotmpl] must be set"))
+			return nil, TaskEnvInvalid.WithErr(fmt.Errorf("failed to parse, unknown format, one of [value, sh, gotmpl] must be set"))
 		}
 	}
 }
 
-func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]string, errors.Message) {
+func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]string, *Error) {
 	env := make(map[string]string, len(ev))
 	for k, v := range ev {
 		attr := []any{slog.Group("env", "key", k, "value", v)}
@@ -107,7 +109,7 @@ func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]strin
 		case map[string]any:
 			b, err := json.Marshal(v)
 			if err != nil {
-				return nil, errors.TaskEnvInvalid.WithErr(err).WithMetadata(attr)
+				return nil, TaskEnvInvalid.WithErr(err).WithMetadata(attr...)
 			}
 
 			var envAsJson struct {
@@ -117,7 +119,7 @@ func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]strin
 			}
 
 			if err := json.Unmarshal(b, &envAsJson); err != nil {
-				return nil, errors.TaskEnvInvalid.WithErr(err).WithMetadata(attr)
+				return nil, TaskEnvInvalid.WithErr(err).WithMetadata(attr...)
 			}
 
 			switch {
@@ -135,7 +137,7 @@ func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]strin
 					}
 
 					if !isDefined {
-						return nil, errors.TaskEnvInvalid.WithErr(fmt.Errorf("env required, but not provided")).WithMetadata(attr)
+						return nil, TaskEnvRequired.WithMetadata(attr...)
 					}
 				}
 
@@ -144,7 +146,7 @@ func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]strin
 					envAsJson.Key = k
 					s, err := envAsJson.EnvKV.Parse(ctx, args)
 					if err != nil {
-						return nil, err.WithMetadata(attr)
+						return nil, err.WithMetadata(attr...)
 					}
 					env[k] = *s
 				}
@@ -154,13 +156,13 @@ func parseEnvVars(ctx Context, ev EnvVar, args EvaluationArgs) (map[string]strin
 					envAsJson.Default.Key = k
 					s, err := envAsJson.Default.Parse(ctx, args)
 					if err != nil {
-						return nil, err.WithMetadata(attr)
+						return nil, err.WithMetadata(attr...)
 					}
 					env[k] = *s
 				}
 			default:
 				{
-					return nil, errors.TaskEnvInvalid.WithErr(fmt.Errorf("either required, value, sh, gotmpl or default, must be defined")).WithMetadata(attr)
+					return nil, TaskEnvInvalid.WithErr(fmt.Errorf("either required, value, sh, gotmpl or default, must be defined")).WithMetadata(attr...)
 				}
 			}
 

@@ -1,12 +1,15 @@
 package runfile
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 
-	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
+	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -47,59 +50,202 @@ func createCommand(ctx Context, args cmdArgs) *exec.Cmd {
 }
 
 type runTaskArgs struct {
+	taskTrail    []string
 	taskName     string
 	envOverrides map[string]string
 }
 
-func (rf *Runfile) runTask(ctx Context, args runTaskArgs) errors.Message {
-	attr := []any{"task", args.taskName, "runfile", rf.attrs.RunfilePath}
+func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
+	runfilePath := fn.Must(filepath.Rel(rf.attrs.RootRunfilePath, rf.attrs.RunfilePath))
 
-	logger := ctx.With("runfile", rf.attrs.RunfilePath, "task", args.taskName, "env:overrides", args.envOverrides)
+	trail := append(args.taskTrail, args.taskName)
+
+	formatErr := func(err *Error) *Error {
+		if runfilePath != "." {
+			return err.WithTask(strings.Join(trail, "/")).WithRunfile(runfilePath)
+		}
+		return err.WithTask(strings.Join(trail, "/"))
+	}
+
+	logger := ctx.With("task", args.taskName, "runfile", runfilePath)
 	logger.Debug("running task")
 	task, ok := rf.Tasks[args.taskName]
 	if !ok {
-		return errors.TaskNotFound.WithMetadata(attr)
+		return formatErr(TaskNotFound)
 	}
 
 	task.Name = args.taskName
 	if task.Env == nil {
 		task.Env = make(EnvVar)
 	}
+
 	for k, v := range args.envOverrides {
 		task.Env[k] = v
 	}
+
 	pt, err := ParseTask(ctx, rf, task)
 	if err != nil {
-		return err
+		return formatErr(err)
 	}
 
-	// envVars := append(pt.Environ, args.envOverrides...)
-	ctx.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides, "task", args.taskName)
+	logger.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides)
 	for _, command := range pt.Commands {
+		logger.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
 		if command.Run != "" {
-			if err := rf.runTask(ctx, runTaskArgs{
+			if err := runTask(ctx, rf, runTaskArgs{
+				taskTrail:    trail,
 				taskName:     command.Run,
 				envOverrides: pt.Env,
-				// envOverrides: append(pt.Environ, args.envOverrides...),
 			}); err != nil {
 				return err
+				// return NewError("", "").WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run)).WithRunfile(rf.attrs.RunfilePath).WithErr(err.WithMetadata())
+				// e := formatErr(err).WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run))
+				// return e
 			}
 			continue
 		}
+
+		stdoutR, stdoutW := io.Pipe()
+		stderrR, stderrW := io.Pipe()
+
+		go func() {
+			r := bufio.NewReader(stdoutR)
+			for {
+				b, err := r.ReadBytes('\n')
+				if err != nil {
+					logger.Info("stdout", "msg", string(b), "err", err)
+					// return
+					break
+				}
+				fmt.Fprintf(os.Stdout, "%s %s", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))), b)
+			}
+		}()
+
+		go func() {
+			r := bufio.NewReader(stderrR)
+			for {
+				b, err := r.ReadBytes('\n')
+				if err != nil {
+					fmt.Printf("hello err: %+v\n", err)
+					logger.Info("stderr", "err", err)
+					// return
+					break
+				}
+				fmt.Fprintf(os.Stderr, "%s %s", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))), b)
+			}
+		}()
 
 		cmd := createCommand(ctx, cmdArgs{
 			shell:      pt.Shell,
 			env:        ToEnviron(pt.Env),
 			cmd:        command.Command,
 			workingDir: pt.WorkingDir,
+			stdout:     stdoutW,
+			stderr:     stderrW,
 		})
 		if err := cmd.Run(); err != nil {
-			return errors.CommandFailed.WithErr(err).WithMetadata(attr)
+			return formatErr(CommandFailed).WithErr(err)
 		}
 	}
 
 	return nil
 }
+
+// func (rf *Runfile) runTask(ctx Context, args runTaskArgs) *Error {
+// 	runfilePath := fn.Must(filepath.Rel(rf.attrs.RootRunfilePath, rf.attrs.RunfilePath))
+//
+// 	trail := append(args.taskTrail, args.taskName)
+//
+// 	formatErr := func(err *Error) *Error {
+// 		if runfilePath != "." {
+// 			return err.WithTask(strings.Join(trail, "/")).WithRunfile(runfilePath)
+// 		}
+// 		return err.WithTask(strings.Join(trail, "/"))
+// 	}
+//
+// 	logger := ctx.With("task", args.taskName, "runfile", runfilePath)
+// 	logger.Debug("running task")
+// 	task, ok := rf.Tasks[args.taskName]
+// 	if !ok {
+// 		return formatErr(TaskNotFound)
+// 	}
+//
+// 	task.Name = args.taskName
+// 	if task.Env == nil {
+// 		task.Env = make(EnvVar)
+// 	}
+//
+// 	for k, v := range args.envOverrides {
+// 		task.Env[k] = v
+// 	}
+//
+// 	pt, err := ParseTask(ctx, rf, task)
+// 	if err != nil {
+// 		return formatErr(err)
+// 	}
+//
+// 	logger.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides)
+// 	for _, command := range pt.Commands {
+// 		logger.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
+// 		if command.Run != "" {
+// 			if err := rf.runTask(ctx, runTaskArgs{
+// 				taskTrail:    trail,
+// 				taskName:     command.Run,
+// 				envOverrides: pt.Env,
+// 			}); err != nil {
+// 				return err
+// 				// return NewError("", "").WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run)).WithRunfile(rf.attrs.RunfilePath).WithErr(err.WithMetadata())
+// 				// e := formatErr(err).WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run))
+// 				// return e
+// 			}
+// 			continue
+// 		}
+//
+// 		stdoutR, stdoutW := io.Pipe()
+// 		stderrR, stderrW := io.Pipe()
+//
+// 		go func() {
+// 			r := bufio.NewReader(stdoutR)
+// 			for {
+// 				b, err := r.ReadBytes('\n')
+// 				if err != nil {
+// 					logger.Info("stdout", "msg", string(b), "err", err)
+// 					// return
+// 					break
+// 				}
+// 				fmt.Fprintf(os.Stdout, "%s %s", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", args.taskName)), b)
+// 			}
+// 		}()
+//
+// 		go func() {
+// 			r := bufio.NewReader(stderrR)
+// 			for {
+// 				b, err := r.ReadBytes('\n')
+// 				if err != nil {
+// 					fmt.Printf("hello err: %+v\n", err)
+// 					logger.Info("stderr", "err", err)
+// 					// return
+// 					break
+// 				}
+// 				fmt.Fprintf(os.Stderr, "%s %s", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", args.taskName)), b)
+// 			}
+// 		}()
+//
+// 		cmd := createCommand(ctx, cmdArgs{
+// 			shell:      pt.Shell,
+// 			env:        ToEnviron(pt.Env),
+// 			cmd:        command.Command,
+// 			workingDir: pt.WorkingDir,
+// 			stdout:     stdoutW,
+// 			stderr:     stderrW,
+// 		})
+// 		if err := cmd.Run(); err != nil {
+// 			return formatErr(CommandFailed).WithErr(err)
+// 		}
+// 	}
+//
+// 	return nil
+// }
 
 type RunArgs struct {
 	Tasks             []string
@@ -109,7 +255,7 @@ type RunArgs struct {
 	KVs               map[string]string
 }
 
-func (rf *Runfile) Run(ctx Context, args RunArgs) errors.Message {
+func (rf *Runfile) Run(ctx Context, args RunArgs) *Error {
 	includes, err := rf.ParseIncludes()
 	if err != nil {
 		return err
@@ -119,14 +265,18 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) errors.Message {
 		for k, v := range includes {
 			for tn := range v.Runfile.Tasks {
 				if taskName == fmt.Sprintf("%s:%s", k, tn) {
-					return v.Runfile.runTask(ctx, runTaskArgs{taskName: tn})
+					return runTask(ctx, v.Runfile, runTaskArgs{taskName: tn})
 				}
 			}
 		}
 
 		task, ok := rf.Tasks[taskName]
 		if !ok {
-			return errors.TaskNotFound.WithMetadata("task", taskName, "runfile", rf.attrs.RunfilePath)
+			errAttr := []any{"task", taskName}
+			if rf.attrs.RunfilePath != rf.attrs.RootRunfilePath {
+				errAttr = append(errAttr, "runfile", fn.Must(filepath.Rel(rf.attrs.RootRunfilePath, rf.attrs.RunfilePath)))
+			}
+			return TaskNotFound.WithMetadata(errAttr...)
 		}
 
 		// INFO: adding parsed KVs as environments to the specified tasks
@@ -147,20 +297,24 @@ func (rf *Runfile) Run(ctx Context, args RunArgs) errors.Message {
 		for _, _tn := range args.Tasks {
 			tn := _tn
 			g.Go(func() error {
-				return rf.runTask(ctx, runTaskArgs{taskName: tn})
+				return runTask(ctx, rf, runTaskArgs{taskName: tn})
 			})
 		}
 
 		// Wait for all tasks to finish
 		if err := g.Wait(); err != nil {
-			return errors.TaskFailed.WithErr(err).WithMetadata("task", args.Tasks, "runfile", rf.attrs.RunfilePath)
+			err2, ok := err.(*Error)
+			if ok {
+				return err2
+			}
+			return TaskFailed.WithErr(err)
 		}
 
 		return nil
 	}
 
 	for _, tn := range args.Tasks {
-		if err := rf.runTask(ctx, runTaskArgs{taskName: tn}); err != nil {
+		if err := runTask(ctx, rf, runTaskArgs{taskName: tn}); err != nil {
 			return err
 		}
 	}

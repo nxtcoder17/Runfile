@@ -10,7 +10,6 @@ import (
 
 	sprig "github.com/go-task/slim-sprig/v3"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/runfile/errors"
 )
 
 type ParsedTask struct {
@@ -21,8 +20,7 @@ type ParsedTask struct {
 }
 
 // func ParseTask(ctx Context, rf *Runfile, taskName string) (*ParsedTask, error) {
-func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, errors.Message) {
-	attrs := []any{"task", task.Name, "runfile", rf.attrs.RunfilePath}
+func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 	for _, requirement := range task.Requires {
 		if requirement == nil {
 			continue
@@ -38,7 +36,7 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, errors.Message
 				stderr:     fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
 			})
 			if err := cmd.Run(); err != nil {
-				return nil, errors.TaskRequirementFailed.WithErr(err).WithMetadata("requirement", *requirement.Sh).WithMetadata(attrs)
+				return nil, TaskRequirementFailed.WithErr(err).WithMetadata("requirement", *requirement.Sh)
 			}
 			continue
 		}
@@ -49,15 +47,15 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, errors.Message
 			templateExpr := fmt.Sprintf(`{{ %s }}`, *requirement.GoTmpl)
 			t, err := t.Parse(templateExpr)
 			if err != nil {
-				return nil, errors.TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", *requirement.GoTmpl).WithMetadata(attrs)
+				return nil, TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", *requirement.GoTmpl)
 			}
 			b := new(bytes.Buffer)
 			if err := t.ExecuteTemplate(b, "requirement", map[string]string{}); err != nil {
-				return nil, errors.TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", *requirement.GoTmpl).WithMetadata(attrs)
+				return nil, TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", *requirement.GoTmpl)
 			}
 
 			if b.String() != "true" {
-				return nil, errors.TaskRequirementFailed.WithErr(fmt.Errorf("template must have evaluated to true")).WithMetadata("requirement", *requirement.GoTmpl).WithMetadata(attrs)
+				return nil, TaskRequirementFailed.WithErr(fmt.Errorf("template must have evaluated to true")).WithMetadata("requirement", *requirement.GoTmpl)
 			}
 
 			continue
@@ -74,21 +72,21 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, errors.Message
 
 	fi, err2 := os.Stat(*task.Dir)
 	if err2 != nil {
-		return nil, errors.TaskWorkingDirectoryInvalid.WithErr(err2).WithMetadata("working-dir", *task.Dir).WithMetadata(attrs)
+		return nil, TaskWorkingDirectoryInvalid.WithErr(err2).WithMetadata("working-dir", *task.Dir)
 	}
 
 	if !fi.IsDir() {
-		return nil, errors.TaskWorkingDirectoryInvalid.WithErr(fmt.Errorf("path is not a directory")).WithMetadata("working-dir", *task.Dir).WithMetadata(attrs)
+		return nil, TaskWorkingDirectoryInvalid.WithErr(fmt.Errorf("path is not a directory")).WithMetadata("working-dir", *task.Dir)
 	}
 
 	dotenvPaths, err := resolveDotEnvFiles(filepath.Dir(rf.attrs.RunfilePath), task.DotEnv...)
 	if err != nil {
-		return nil, err.WithMetadata(attrs)
+		return nil, err
 	}
 
 	dotenvVars, err := parseDotEnvFiles(dotenvPaths...)
 	if err != nil {
-		return nil, err.WithMetadata(attrs)
+		return nil, err
 	}
 
 	// INFO: keys from task.Env will override those coming from dotenv files, when duplicated
@@ -97,14 +95,14 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, errors.Message
 		Env:   dotenvVars,
 	})
 	if err != nil {
-		return nil, err.WithMetadata(attrs)
+		return nil, err
 	}
 
 	commands := make([]CommandJson, 0, len(task.Commands))
 	for i := range task.Commands {
 		c2, err := parseCommand(rf, task.Commands[i])
 		if err != nil {
-			return nil, err.WithMetadata(attrs)
+			return nil, err
 		}
 		commands = append(commands, *c2)
 	}
@@ -118,7 +116,7 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, errors.Message
 }
 
 // returns absolute paths to dotenv files
-func resolveDotEnvFiles(pwd string, dotEnvFiles ...string) ([]string, errors.Message) {
+func resolveDotEnvFiles(pwd string, dotEnvFiles ...string) ([]string, *Error) {
 	paths := make([]string, 0, len(dotEnvFiles))
 
 	for _, v := range dotEnvFiles {
@@ -128,11 +126,11 @@ func resolveDotEnvFiles(pwd string, dotEnvFiles ...string) ([]string, errors.Mes
 		}
 		fi, err := os.Stat(dotenvPath)
 		if err != nil {
-			return nil, errors.DotEnvNotFound.WithErr(err).WithMetadata("dotenv", dotenvPath)
+			return nil, DotEnvNotFound.WithErr(err).WithMetadata("dotenv", dotenvPath)
 		}
 
 		if fi.IsDir() {
-			return nil, errors.DotEnvInvalid.WithErr(fmt.Errorf("dotenv path must be a file, but it is a directory")).WithMetadata("dotenv", dotenvPath)
+			return nil, DotEnvInvalid.WithErr(fmt.Errorf("dotenv path must be a file, but it is a directory")).WithMetadata("dotenv", dotenvPath)
 		}
 
 		paths = append(paths, dotenvPath)
@@ -141,7 +139,7 @@ func resolveDotEnvFiles(pwd string, dotEnvFiles ...string) ([]string, errors.Mes
 	return paths, nil
 }
 
-func parseCommand(rf *Runfile, command any) (*CommandJson, errors.Message) {
+func parseCommand(rf *Runfile, command any) (*CommandJson, *Error) {
 	switch c := command.(type) {
 	case string:
 		{
@@ -152,26 +150,26 @@ func parseCommand(rf *Runfile, command any) (*CommandJson, errors.Message) {
 			var cj CommandJson
 			b, err := json.Marshal(c)
 			if err != nil {
-				return nil, errors.CommandInvalid.WithErr(err).WithMetadata("command", command)
+				return nil, CommandInvalid.WithErr(err).WithMetadata("command", command)
 			}
 
 			if err := json.Unmarshal(b, &cj); err != nil {
-				return nil, errors.CommandInvalid.WithErr(err).WithMetadata("command", command)
+				return nil, CommandInvalid.WithErr(err).WithMetadata("command", command)
 			}
 
 			if cj.Run == "" {
-				return nil, errors.CommandInvalid.WithErr(fmt.Errorf("key: 'run', must be specified when setting command in json format")).WithMetadata("command", command)
+				return nil, CommandInvalid.WithErr(fmt.Errorf("key: 'run', must be specified when setting command in json format")).WithMetadata("command", command)
 			}
 
 			if _, ok := rf.Tasks[cj.Run]; !ok {
-				return nil, errors.CommandInvalid.WithErr(fmt.Errorf("run target, not found")).WithMetadata("command", command, "run-target", cj.Run)
+				return nil, CommandInvalid.WithErr(fmt.Errorf("run target, not found")).WithMetadata("command", command, "run-target", cj.Run)
 			}
 
 			return &cj, nil
 		}
 	default:
 		{
-			return nil, errors.CommandInvalid.WithMetadata("command", command)
+			return nil, CommandInvalid.WithMetadata("command", command)
 		}
 	}
 }
