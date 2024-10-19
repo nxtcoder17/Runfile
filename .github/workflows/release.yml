@@ -68,7 +68,7 @@ jobs:
           CGO_ENABLED: 0
         run: |+
           binary=bin/run-${{ matrix.platform }}-${{ matrix.arch }}
-          go build -o $binary -ldflags="-s -w" -tags urfave_cli_no_docs cmd/run/main.go
+          go build -o $binary -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
 
           if [ "${{ matrix.platform }}" = "linux" ]; then
             upx $binary
