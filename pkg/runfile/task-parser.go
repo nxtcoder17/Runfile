@@ -37,7 +37,11 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 	}
 
 	if rf.DotEnv != nil {
-		m, err := parseDotEnvFiles(rf.DotEnv...)
+		dotEnvPaths, err := resolveDotEnvFiles(filepath.Dir(rf.attrs.RunfilePath), rf.DotEnv...)
+		if err != nil {
+			return nil, err
+		}
+		m, err := parseDotEnvFiles(dotEnvPaths...)
 		if err != nil {
 			return nil, err
 		}

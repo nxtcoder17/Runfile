@@ -11,6 +11,9 @@ includes:
 env:
   global_k1: "v1"
 
+dotenv:
+  - ../.secrets/env
+
 tasks:
   cook:
     env:
@@ -25,16 +28,16 @@ tasks:
           # value: "this is default value"
           # sh: echo this should be the default value
           gotmpl: len "asdfadf"
-    dotenv:
-      - ../.secrets/env
+    # dotenv:
+    #   - ../.secrets/env
     cmd: 
       # - sleep 5
       # - echo "hi hello"
       # - echo "value of k1 is '$k1'"
       # - echo "value of k2 is '$k2'"
       # - echo "value of k3 is '$k3'"
-      # - echo "value of key_id (from .dotenv) is '$key_id', ${#key_id}"
       - echo "hello from cook"
+      - echo "value of key_id (from .dotenv) is '$key_id', ${#key_id}"
       - echo "k4 is $k4"
       - echo "k5 is $k5"
 
