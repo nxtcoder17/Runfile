@@ -36,6 +36,16 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 		}
 	}
 
+	if rf.DotEnv != nil {
+		m, err := parseDotEnvFiles(rf.DotEnv...)
+		if err != nil {
+			return nil, err
+		}
+		for k, v := range m {
+			globalEnv[k] = v
+		}
+	}
+
 	for _, requirement := range task.Requires {
 		if requirement == nil {
 			continue
