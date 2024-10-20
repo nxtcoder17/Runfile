@@ -792,9 +792,66 @@ echo "hi"
 		},
 	}
 
+	testGlobalDotEnv := []test{
+		{
+			name: "1. testing global env key-value item",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					DotEnv: []string{
+						dotenvTestFile.Name(),
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Env: map[string]string{
+					"hello": "world",
+				},
+				Commands: []CommandJson{
+					{Command: "echo hi"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "2. fails when dotenv file not found",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					DotEnv: []string{
+						dotenvTestFile.Name() + "2",
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
 	tests = append(tests, testRequires...)
 	tests = append(tests, testEnviroments...)
 	tests = append(tests, testGlobalEnvVars...)
+	tests = append(tests, testGlobalDotEnv...)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
