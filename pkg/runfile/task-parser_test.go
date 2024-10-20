@@ -631,8 +631,170 @@ echo "hi"
 		},
 	}
 
+	testGlobalEnvVars := []test{
+		{
+			name: "1. testing global env key-value item",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					Env: map[string]any{
+						"k1": "v1",
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Env: map[string]string{
+					"k1": "v1",
+				},
+				Commands: []CommandJson{
+					{Command: "echo hi"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "2. testing global env key-shell value",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					Env: map[string]any{
+						"k1": map[string]any{
+							"sh": "echo hi",
+						},
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Env: map[string]string{
+					"k1": "hi",
+				},
+				Commands: []CommandJson{
+					{Command: "echo hi"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "3. testing global env-var default value",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					Env: map[string]any{
+						"k1": map[string]any{
+							"default": map[string]any{
+								"value": "default-value",
+							},
+						},
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Env: map[string]string{
+					"k1": "default-value",
+				},
+				Commands: []CommandJson{
+					{Command: "echo hi"},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "4. overriding global env var at task level",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					Env: map[string]any{
+						"k1": "v1",
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Env: EnvVar{
+								"k1": "task-level-v1",
+							},
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:      []string{"sh", "-c"},
+				WorkingDir: fn.Must(os.Getwd()),
+				Env: map[string]string{
+					"k1": "task-level-v1",
+				},
+				Commands: []CommandJson{
+					{Command: "echo hi"},
+				},
+			},
+			wantErr: false,
+		},
+
+		{
+			name: "5. required global env var",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					Env: map[string]any{
+						"k1": map[string]any{
+							"required": true,
+						},
+					},
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hi",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
 	tests = append(tests, testRequires...)
 	tests = append(tests, testEnviroments...)
+	tests = append(tests, testGlobalEnvVars...)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

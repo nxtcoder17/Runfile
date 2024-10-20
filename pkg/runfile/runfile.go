@@ -18,6 +18,8 @@ type Runfile struct {
 
 	Version  string                 `json:"version,omitempty"`
 	Includes map[string]IncludeSpec `json:"includes"`
+	Env      EnvVar                 `json:"env,omitempty"`
+	DotEnv   []string               `json:"dotEnv,omitempty"`
 	Tasks    map[string]Task        `json:"tasks"`
 }
 
