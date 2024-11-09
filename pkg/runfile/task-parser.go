@@ -19,7 +19,6 @@ type ParsedTask struct {
 	Commands   []CommandJson     `json:"commands"`
 }
 
-// func ParseTask(ctx Context, rf *Runfile, taskName string) (*ParsedTask, error) {
 func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 	globalEnv := make(map[string]string)
 

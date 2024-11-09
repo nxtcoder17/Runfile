@@ -19,3 +19,7 @@ tasks:
   test:
     cmd:
       - go test -json ./pkg/runfile | gotestfmt
+
+  test:only-failing:
+    cmd:
+      - go test -json ./pkg/runfile | gotestfmt --hide successful-tests

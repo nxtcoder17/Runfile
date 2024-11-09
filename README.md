@@ -50,3 +50,34 @@ tasks:
       - echo "value of key3 is '$key3'"
       - echo "value of key4 is '$key4'" # assuming key4 is defined in .secrets/env
 ```
+
+## Updates with example runfile with all the features
+
+```yaml
+version: 0.0.1
+
+tasks:
+  test:
+    env:
+      key1: value1
+      key2: value2
+      key3:
+        sh: echo -n "hello"
+      key4:
+        required: true
+      dotenv:
+        - .secrets/env # load dotenv file
+    cmd:
+      - echo "value of key1 is '$key1'"
+      - echo "value of key2 is '$key2'"
+      - echo "value of key3 is '$key3'"
+      - echo "value of key4 is '$key4'" # assuming key4 is defined in .secrets/env
+  build:
+    dir: cmd/app
+    cmd:
+      - go build -o app
+  run:
+    dir: cmd/app
+    cmd:
+      - go run .
+```
