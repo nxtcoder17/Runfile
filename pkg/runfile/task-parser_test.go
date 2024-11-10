@@ -29,6 +29,11 @@ func TestParseTask(t *testing.T) {
 			return false
 		}
 
+		if got.Interactive != want.Interactive {
+			t.Logf("interactive not equal")
+			return false
+		}
+
 		if len(got.Env) != len(want.Env) {
 			t.Logf("environments not equal")
 			return false
@@ -628,6 +633,44 @@ echo "hi"
 				taskName: "test",
 			},
 			wantErr: true,
+		},
+
+		{
+			name: "[task] interactive task",
+			args: args{
+				ctx: nil,
+				rf: &Runfile{
+					Tasks: map[string]Task{
+						"test": {
+							ignoreSystemEnv: true,
+							Interactive:     true,
+							Commands: []any{
+								"echo i will call hello, now",
+								map[string]any{
+									"run": "hello",
+								},
+							},
+						},
+						"hello": {
+							ignoreSystemEnv: true,
+							Commands: []any{
+								"echo hello everyone",
+							},
+						},
+					},
+				},
+				taskName: "test",
+			},
+			want: &ParsedTask{
+				Shell:       []string{"sh", "-c"},
+				WorkingDir:  fn.Must(os.Getwd()),
+				Interactive: true,
+				Commands: []CommandJson{
+					{Command: "echo i will call hello, now"},
+					{Run: "hello"},
+				},
+			},
+			wantErr: false,
 		},
 	}
 

@@ -4,3 +4,8 @@ tasks:
   echo:
     cmd:
       - echo "hello from run1"
+
+  node:shell:
+    interactive: true
+    cmd:
+      - node
