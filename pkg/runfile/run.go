@@ -1,13 +1,14 @@
 package runfile
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"golang.org/x/sync/errgroup"
@@ -20,8 +21,9 @@ type cmdArgs struct {
 
 	cmd string
 
-	stdout io.Writer
-	stderr io.Writer
+	interactive bool
+	stdout      io.Writer
+	stderr      io.Writer
 }
 
 func createCommand(ctx Context, args cmdArgs) *exec.Cmd {
@@ -46,6 +48,10 @@ func createCommand(ctx Context, args cmdArgs) *exec.Cmd {
 	c.Stdout = args.stdout
 	c.Stderr = args.stderr
 
+	if args.interactive {
+		c.Stdin = os.Stdin
+	}
+
 	return c
 }
 
@@ -53,6 +59,33 @@ type runTaskArgs struct {
 	taskTrail    []string
 	taskName     string
 	envOverrides map[string]string
+}
+
+func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
+	prevByte := byte('\n')
+	msg := make([]byte, 1)
+	for {
+		n, err := reader.Read(msg)
+		if err != nil {
+			// logger.Info("stdout", "msg", string(msg[:n]), "err", err)
+			if errors.Is(err, io.EOF) {
+				os.Stdout.Write(msg[:n])
+				return
+			}
+		}
+
+		if n != 1 {
+			continue
+		}
+
+		if prevByte == '\n' && prefix != nil {
+			// os.Stdout.WriteString(fmt.Sprintf("HERE... msg: '%s'", msg[:n]))
+			os.Stdout.WriteString(*prefix)
+		}
+
+		writer.Write(msg[:n])
+		prevByte = msg[0]
+	}
 }
 
 func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
@@ -108,44 +141,39 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 		stdoutR, stdoutW := io.Pipe()
 		stderrR, stderrW := io.Pipe()
 
+		wg := sync.WaitGroup{}
+
+		wg.Add(1)
 		go func() {
-			r := bufio.NewReader(stdoutR)
-			for {
-				b, err := r.ReadBytes('\n')
-				if err != nil {
-					logger.Info("stdout", "msg", string(b), "err", err)
-					// return
-					break
-				}
-				fmt.Fprintf(os.Stdout, "%s %s", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))), b)
-			}
+			defer wg.Done()
+			logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
+			processOutput(os.Stdout, stdoutR, &logPrefix)
 		}()
 
+		wg.Add(1)
 		go func() {
-			r := bufio.NewReader(stderrR)
-			for {
-				b, err := r.ReadBytes('\n')
-				if err != nil {
-					fmt.Printf("hello err: %+v\n", err)
-					logger.Info("stderr", "err", err)
-					// return
-					break
-				}
-				fmt.Fprintf(os.Stderr, "%s %s", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))), b)
-			}
+			defer wg.Done()
+			logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
+			processOutput(os.Stderr, stderrR, &logPrefix)
 		}()
 
 		cmd := createCommand(ctx, cmdArgs{
-			shell:      pt.Shell,
-			env:        ToEnviron(pt.Env),
-			cmd:        command.Command,
-			workingDir: pt.WorkingDir,
-			stdout:     stdoutW,
-			stderr:     stderrW,
+			shell:       pt.Shell,
+			env:         ToEnviron(pt.Env),
+			cmd:         command.Command,
+			workingDir:  pt.WorkingDir,
+			interactive: pt.Interactive,
+			stdout:      stdoutW,
+			stderr:      stderrW,
 		})
 		if err := cmd.Run(); err != nil {
 			return formatErr(CommandFailed).WithErr(err)
 		}
+
+		stdoutW.Close()
+		stderrW.Close()
+
+		wg.Wait()
 	}
 
 	return nil

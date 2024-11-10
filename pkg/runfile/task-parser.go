@@ -13,10 +13,11 @@ import (
 )
 
 type ParsedTask struct {
-	Shell      []string          `json:"shell"`
-	WorkingDir string            `json:"workingDir"`
-	Env        map[string]string `json:"environ"`
-	Commands   []CommandJson     `json:"commands"`
+	Shell       []string          `json:"shell"`
+	WorkingDir  string            `json:"workingDir"`
+	Env         map[string]string `json:"environ"`
+	Interactive bool              `json:"interactive,omitempty"`
+	Commands    []CommandJson     `json:"commands"`
 }
 
 func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
@@ -136,10 +137,11 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 	}
 
 	return &ParsedTask{
-		Shell:      task.Shell,
-		WorkingDir: *task.Dir,
-		Env:        fn.MapMerge(globalEnv, taskDotenvVars, taskEnvVars),
-		Commands:   commands,
+		Shell:       task.Shell,
+		WorkingDir:  *task.Dir,
+		Interactive: task.Interactive,
+		Env:         fn.MapMerge(globalEnv, taskDotenvVars, taskEnvVars),
+		Commands:    commands,
 	}, nil
 }
 

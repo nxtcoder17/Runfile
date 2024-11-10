@@ -41,6 +41,8 @@ type Task struct {
 
 	Requires []*Requires `json:"requires,omitempty"`
 
+	Interactive bool `json:"interactive,omitempty"`
+
 	// List of commands to be executed in given shell (default: sh)
 	// can take multiple forms
 	//   - simple string
