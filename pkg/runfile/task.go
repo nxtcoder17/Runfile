@@ -46,11 +46,14 @@ type Task struct {
 	// List of commands to be executed in given shell (default: sh)
 	// can take multiple forms
 	//   - simple string
-	//   - a json object with key `run`, signifying other tasks to run
+	//   - a json object with key
+	//       `run`, signifying other tasks to run
+	//       `if`, condition when to run this server
 	Commands []any `json:"cmd"`
 }
 
 type CommandJson struct {
 	Command string
 	Run     string `json:"run"`
+	If      *bool  `json:"if"`
 }

@@ -69,7 +69,7 @@ func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
 		if err != nil {
 			// logger.Info("stdout", "msg", string(msg[:n]), "err", err)
 			if errors.Is(err, io.EOF) {
-				os.Stdout.Write(msg[:n])
+				writer.Write(msg[:n])
 				return
 			}
 		}
@@ -80,7 +80,7 @@ func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
 
 		if prevByte == '\n' && prefix != nil {
 			// os.Stdout.WriteString(fmt.Sprintf("HERE... msg: '%s'", msg[:n]))
-			os.Stdout.WriteString(*prefix)
+			writer.Write([]byte(*prefix))
 		}
 
 		writer.Write(msg[:n])

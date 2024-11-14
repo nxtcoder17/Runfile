@@ -191,6 +191,10 @@ func parseCommand(rf *Runfile, command any) (*CommandJson, *Error) {
 				return nil, CommandInvalid.WithErr(fmt.Errorf("key: 'run', must be specified when setting command in json format")).WithMetadata("command", command)
 			}
 
+			if cj.If == nil {
+				cj.If = fn.New(true)
+			}
+
 			if _, ok := rf.Tasks[cj.Run]; !ok {
 				return nil, CommandInvalid.WithErr(fmt.Errorf("run target, not found")).WithMetadata("command", command, "run-target", cj.Run)
 			}
