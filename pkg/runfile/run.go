@@ -124,6 +124,12 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 	logger.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides)
 	for _, command := range pt.Commands {
 		logger.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
+
+		if command.If != nil && !*command.If {
+			logger.Debug("skipping execution for failed `if`", "command", command.Run)
+			continue
+		}
+
 		if command.Run != "" {
 			if err := runTask(ctx, rf, runTaskArgs{
 				taskTrail:    trail,
@@ -131,9 +137,6 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 				envOverrides: pt.Env,
 			}); err != nil {
 				return err
-				// return NewError("", "").WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run)).WithRunfile(rf.attrs.RunfilePath).WithErr(err.WithMetadata())
-				// e := formatErr(err).WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run))
-				// return e
 			}
 			continue
 		}

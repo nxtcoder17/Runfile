@@ -13,11 +13,31 @@ import (
 )
 
 type ParsedTask struct {
-	Shell       []string          `json:"shell"`
-	WorkingDir  string            `json:"workingDir"`
-	Env         map[string]string `json:"environ"`
-	Interactive bool              `json:"interactive,omitempty"`
-	Commands    []CommandJson     `json:"commands"`
+	Shell       []string            `json:"shell"`
+	WorkingDir  string              `json:"workingDir"`
+	Env         map[string]string   `json:"environ"`
+	Interactive bool                `json:"interactive,omitempty"`
+	Commands    []ParsedCommandJson `json:"commands"`
+}
+
+func evalGoTemplateCondition(tpl string) (bool, *Error) {
+	t := template.New("requirement")
+	t = t.Funcs(sprig.FuncMap())
+	templateExpr := fmt.Sprintf(`{{ %s }}`, tpl)
+	t, err := t.Parse(templateExpr)
+	if err != nil {
+		return false, TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", tpl)
+	}
+	b := new(bytes.Buffer)
+	if err := t.ExecuteTemplate(b, "requirement", map[string]string{}); err != nil {
+		return false, TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", tpl)
+	}
+
+	if b.String() != "true" {
+		return false, TaskRequirementFailed.WithErr(fmt.Errorf("template must have evaluated to true")).WithMetadata("requirement", tpl)
+	}
+
+	return true, nil
 }
 
 func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
@@ -71,22 +91,9 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 		}
 
 		if requirement.GoTmpl != nil {
-			t := template.New("requirement")
-			t = t.Funcs(sprig.FuncMap())
-			templateExpr := fmt.Sprintf(`{{ %s }}`, *requirement.GoTmpl)
-			t, err := t.Parse(templateExpr)
-			if err != nil {
-				return nil, TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", *requirement.GoTmpl)
+			if _, err := evalGoTemplateCondition(*requirement.GoTmpl); err != nil {
+				return nil, err
 			}
-			b := new(bytes.Buffer)
-			if err := t.ExecuteTemplate(b, "requirement", map[string]string{}); err != nil {
-				return nil, TaskRequirementIncorrect.WithErr(err).WithMetadata("requirement", *requirement.GoTmpl)
-			}
-
-			if b.String() != "true" {
-				return nil, TaskRequirementFailed.WithErr(fmt.Errorf("template must have evaluated to true")).WithMetadata("requirement", *requirement.GoTmpl)
-			}
-
 			continue
 		}
 	}
@@ -127,7 +134,7 @@ func ParseTask(ctx Context, rf *Runfile, task Task) (*ParsedTask, *Error) {
 		return nil, err
 	}
 
-	commands := make([]CommandJson, 0, len(task.Commands))
+	commands := make([]ParsedCommandJson, 0, len(task.Commands))
 	for i := range task.Commands {
 		c2, err := parseCommand(rf, task.Commands[i])
 		if err != nil {
@@ -169,11 +176,11 @@ func resolveDotEnvFiles(pwd string, dotEnvFiles ...string) ([]string, *Error) {
 	return paths, nil
 }
 
-func parseCommand(rf *Runfile, command any) (*CommandJson, *Error) {
+func parseCommand(rf *Runfile, command any) (*ParsedCommandJson, *Error) {
 	switch c := command.(type) {
 	case string:
 		{
-			return &CommandJson{Command: c}, nil
+			return &ParsedCommandJson{Command: c}, nil
 		}
 	case map[string]any:
 		{
@@ -187,19 +194,27 @@ func parseCommand(rf *Runfile, command any) (*CommandJson, *Error) {
 				return nil, CommandInvalid.WithErr(err).WithMetadata("command", command)
 			}
 
-			if cj.Run == "" {
-				return nil, CommandInvalid.WithErr(fmt.Errorf("key: 'run', must be specified when setting command in json format")).WithMetadata("command", command)
+			if cj.Run == "" && cj.Command == "" {
+				return nil, CommandInvalid.WithErr(fmt.Errorf("key: 'run'/'cmd', must be specified when setting command in json format")).WithMetadata("command", cj)
 			}
 
-			if cj.If == nil {
-				cj.If = fn.New(true)
+			var pcj ParsedCommandJson
+			pcj.Run = cj.Run
+			pcj.Command = cj.Command
+
+			if cj.If != nil {
+				ok, _ := evalGoTemplateCondition(*cj.If)
+				// if err != nil {
+				// 	return nil, err
+				// }
+				pcj.If = &ok
 			}
 
-			if _, ok := rf.Tasks[cj.Run]; !ok {
-				return nil, CommandInvalid.WithErr(fmt.Errorf("run target, not found")).WithMetadata("command", command, "run-target", cj.Run)
-			}
+			// if _, ok := rf.Tasks[cj.Run]; !ok {
+			// 	return nil, CommandInvalid.WithErr(fmt.Errorf("run target, not found")).WithMetadata("command", command, "run-target", cj.Run)
+			// }
 
-			return &cj, nil
+			return &pcj, nil
 		}
 	default:
 		{

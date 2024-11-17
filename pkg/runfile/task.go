@@ -53,7 +53,19 @@ type Task struct {
 }
 
 type CommandJson struct {
-	Command string
+	Command string `json:"cmd"`
 	Run     string `json:"run"`
-	If      *bool  `json:"if"`
+	Env     string `json:"env"`
+
+	// If is a go template expression, which must evaluate to true, for task to run
+	If *string `json:"if,omitempty"`
+}
+
+type ParsedCommandJson struct {
+	Command string `json:"cmd"`
+	Run     string `json:"run"`
+	Env     string `json:"env"`
+
+	// If is a go template expression, which must evaluate to true, for task to run
+	If *bool `json:"if"`
 }
