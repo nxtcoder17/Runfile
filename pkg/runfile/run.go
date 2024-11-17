@@ -69,7 +69,7 @@ func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
 		if err != nil {
 			// logger.Info("stdout", "msg", string(msg[:n]), "err", err)
 			if errors.Is(err, io.EOF) {
-				os.Stdout.Write(msg[:n])
+				writer.Write(msg[:n])
 				return
 			}
 		}
@@ -80,7 +80,7 @@ func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
 
 		if prevByte == '\n' && prefix != nil {
 			// os.Stdout.WriteString(fmt.Sprintf("HERE... msg: '%s'", msg[:n]))
-			os.Stdout.WriteString(*prefix)
+			writer.Write([]byte(*prefix))
 		}
 
 		writer.Write(msg[:n])
@@ -124,6 +124,12 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 	logger.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides)
 	for _, command := range pt.Commands {
 		logger.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
+
+		if command.If != nil && !*command.If {
+			logger.Debug("skipping execution for failed `if`", "command", command.Run)
+			continue
+		}
+
 		if command.Run != "" {
 			if err := runTask(ctx, rf, runTaskArgs{
 				taskTrail:    trail,
@@ -131,9 +137,6 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 				envOverrides: pt.Env,
 			}); err != nil {
 				return err
-				// return NewError("", "").WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run)).WithRunfile(rf.attrs.RunfilePath).WithErr(err.WithMetadata())
-				// e := formatErr(err).WithTask(fmt.Sprintf("%s/%s", err.TaskName, command.Run))
-				// return e
 			}
 			continue
 		}

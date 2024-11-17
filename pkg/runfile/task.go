@@ -46,11 +46,26 @@ type Task struct {
 	// List of commands to be executed in given shell (default: sh)
 	// can take multiple forms
 	//   - simple string
-	//   - a json object with key `run`, signifying other tasks to run
+	//   - a json object with key
+	//       `run`, signifying other tasks to run
+	//       `if`, condition when to run this server
 	Commands []any `json:"cmd"`
 }
 
 type CommandJson struct {
-	Command string
+	Command string `json:"cmd"`
 	Run     string `json:"run"`
+	Env     string `json:"env"`
+
+	// If is a go template expression, which must evaluate to true, for task to run
+	If *string `json:"if,omitempty"`
+}
+
+type ParsedCommandJson struct {
+	Command string `json:"cmd"`
+	Run     string `json:"run"`
+	Env     string `json:"env"`
+
+	// If is a go template expression, which must evaluate to true, for task to run
+	If *bool `json:"if"`
 }
