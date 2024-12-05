@@ -1,6 +1,7 @@
 package runfile
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -61,9 +62,20 @@ type runTaskArgs struct {
 	envOverrides map[string]string
 }
 
+type outputWriter struct {
+	mu     sync.Mutex
+	writer io.Writer
+}
+
+func (ow *outputWriter) Write(p []byte) (n int, err error) {
+	ow.mu.Lock()
+	defer ow.mu.Unlock()
+	return ow.writer.Write(p)
+}
+
 func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
 	prevByte := byte('\n')
-	msg := make([]byte, 1)
+	msg := make([]byte, 1024)
 	for {
 		n, err := reader.Read(msg)
 		if err != nil {
@@ -74,17 +86,33 @@ func processOutput(writer io.Writer, reader io.Reader, prefix *string) {
 			}
 		}
 
-		if n != 1 {
-			continue
+		if n > 0 {
+			for i := 0; i < n; i++ {
+				if prevByte == '\n' && prefix != nil {
+					writer.Write([]byte(*prefix)) // Write prefix at the start of a line
+				}
+				writer.Write([]byte{msg[i]}) // Write the current byte
+				prevByte = msg[i]
+			}
+		}
+	}
+}
+
+func processOutputLineByLine(writer io.Writer, reader io.Reader, prefix *string) {
+	r := bufio.NewReader(reader)
+	for {
+		b, err := r.ReadBytes('\n')
+		if err != nil {
+			// logger.Info("stdout", "msg", string(msg[:n]), "err", err)
+			if errors.Is(err, io.EOF) {
+				writer.Write([]byte(*prefix))
+				writer.Write(b)
+				return
+			}
 		}
 
-		if prevByte == '\n' && prefix != nil {
-			// os.Stdout.WriteString(fmt.Sprintf("HERE... msg: '%s'", msg[:n]))
-			writer.Write([]byte(*prefix))
-		}
-
-		writer.Write(msg[:n])
-		prevByte = msg[0]
+		writer.Write([]byte(*prefix))
+		writer.Write(b)
 	}
 }
 
@@ -150,14 +178,17 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 		go func() {
 			defer wg.Done()
 			logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-			processOutput(os.Stdout, stdoutR, &logPrefix)
+			// processOutput(os.Stdout, stdoutR, &logPrefix)
+			processOutput(&outputWriter{writer: os.Stdout}, stdoutR, &logPrefix)
 		}()
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-			processOutput(os.Stderr, stderrR, &logPrefix)
+			// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
+			processOutput(&outputWriter{writer: os.Stderr}, stderrR, &logPrefix)
+			// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
 		}()
 
 		cmd := createCommand(ctx, cmdArgs{

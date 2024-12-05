@@ -98,6 +98,7 @@ func New(opts Options) *slog.Logger {
 			},
 		},
 	}
+
 	sl := l.Slog()
 	if opts.SetAsDefaultLogger {
 		slog.SetDefault(sl)
