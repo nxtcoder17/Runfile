@@ -62,7 +62,7 @@ func DefaultTheme() *Theme {
 			LogLevelStyles: [6]lipgloss.Style{
 				style.Foreground(lipgloss.Color("#bdbfbe")).Faint(true),                   // TRACE
 				style.Foreground(lipgloss.Color("#bdbfbe")).Faint(true),                   // DEBUG
-				style.UnsetBackground().Foreground(lipgloss.Color("#099dd6")).Faint(true), // INFO
+				style.UnsetBackground().Foreground(lipgloss.Color("#099dd6")),             // INFO
 				style.UnsetBackground().Foreground(lipgloss.Color("#d6d609")).Faint(true), // WARN
 				style.UnsetBackground().Foreground(lipgloss.Color("#c76975")),             // ERROR
 				style.UnsetBackground().Foreground(lipgloss.Color("#d6d609")).Bold(true),  // UNKNOWN

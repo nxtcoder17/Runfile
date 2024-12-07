@@ -2,6 +2,7 @@ package runfile
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/charmbracelet/lipgloss"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"golang.org/x/sync/errgroup"
 )
@@ -130,6 +133,7 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 
 	logger := ctx.With("task", args.taskName, "runfile", runfilePath)
 	logger.Debug("running task")
+
 	task, ok := rf.Tasks[args.taskName]
 	if !ok {
 		return formatErr(TaskNotFound)
@@ -169,27 +173,58 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 			continue
 		}
 
-		stdoutR, stdoutW := io.Pipe()
-		stderrR, stderrW := io.Pipe()
+		// stdoutR, stdoutW := io.Pipe()
+		// stderrR, stderrW := io.Pipe()
 
-		wg := sync.WaitGroup{}
+		// wg := sync.WaitGroup{}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-			// processOutput(os.Stdout, stdoutR, &logPrefix)
-			processOutput(&outputWriter{writer: os.Stdout}, stdoutR, &logPrefix)
-		}()
+		// [snippet source](https://rderik.com/blog/identify-if-output-goes-to-the-terminal-or-is-being-redirected-in-golang/)
+		// stdout, _ := os.Stdout.Stat()
+		// stderr, _ := os.Stderr.Stat()
+		// isTTY := ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
+		//
+		// if isTTY {
+		// 	go func() {
+		// 		defer wg.Done()
+		// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
+		// 		processOutput(os.Stdout, stdoutR, &logPrefix)
+		//
+		// 		stderrPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
+		// 		processOutput(os.Stderr, stderrR, &stderrPrefix)
+		// 	}()
+		// } else {
+		// 	wg.Add(1)
+		// 	go func() {
+		// 		defer wg.Done()
+		// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
+		// 		processOutput(os.Stdout, stdoutR, &logPrefix)
+		// 		// if pt.Interactive {
+		// 		// 	processOutput(os.Stdout, stdoutR, &logPrefix)
+		// 		// 	return
+		// 		// }
+		// 		// processOutputLineByLine(os.Stdout, stdoutR, &logPrefix)
+		// 	}()
+		//
+		// 	wg.Add(1)
+		// 	go func() {
+		// 		defer wg.Done()
+		// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
+		// 		processOutput(os.Stderr, stderrR, &logPrefix)
+		// 		// if pt.Interactive {
+		// 		// 	processOutput(os.Stderr, stderrR, &logPrefix)
+		// 		// 	return
+		// 		// }
+		// 		// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
+		// 	}()
+		//
+		// }
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-			// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
-			processOutput(&outputWriter{writer: os.Stderr}, stderrR, &logPrefix)
-			// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
-		}()
+		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color("#4388cc")).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+
+		hlCode := new(bytes.Buffer)
+		quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", "onedark")
+
+		fmt.Printf("%s\n", s.Render(hlCode.String()))
 
 		cmd := createCommand(ctx, cmdArgs{
 			shell:       pt.Shell,
@@ -197,17 +232,20 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 			cmd:         command.Command,
 			workingDir:  pt.WorkingDir,
 			interactive: pt.Interactive,
-			stdout:      stdoutW,
-			stderr:      stderrW,
+			stdout:      os.Stdout,
+			stderr:      os.Stderr,
+			// stdout:      stdoutW,
+			// stderr:      stderrW,
 		})
+
 		if err := cmd.Run(); err != nil {
 			return formatErr(CommandFailed).WithErr(err)
 		}
 
-		stdoutW.Close()
-		stderrW.Close()
-
-		wg.Wait()
+		// stdoutW.Close()
+		// stderrW.Close()
+		//
+		// wg.Wait()
 	}
 
 	return nil
