@@ -14,6 +14,7 @@ import (
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"golang.org/x/sync/errgroup"
 )
@@ -119,6 +120,10 @@ func processOutputLineByLine(writer io.Writer, reader io.Reader, prefix *string)
 	}
 }
 
+func isDarkTheme() bool {
+	return termenv.NewOutput(os.Stdout).HasDarkBackground()
+}
+
 func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 	runfilePath := fn.Must(filepath.Rel(rf.attrs.RootRunfilePath, rf.attrs.RunfilePath))
 
@@ -153,7 +158,6 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 		return formatErr(err)
 	}
 
-	logger.Debug("debugging env", "pt.environ", pt.Env, "overrides", args.envOverrides)
 	for _, command := range pt.Commands {
 		logger.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
 
@@ -216,13 +220,20 @@ func runTask(ctx Context, rf *Runfile, args runTaskArgs) *Error {
 		// 		// }
 		// 		// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
 		// 	}()
-		//
 		// }
 
-		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color("#4388cc")).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+		borderColor := "#4388cc"
+		if !isDarkTheme() {
+			borderColor = "#3d5485"
+		}
+		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
 
 		hlCode := new(bytes.Buffer)
-		quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", "onedark")
+		colorscheme := "onedark"
+		if !isDarkTheme() {
+			colorscheme = "monokailight"
+		}
+		quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
 
 		fmt.Printf("%s\n", s.Render(hlCode.String()))
 
