@@ -1,7 +1,3 @@
-# vim: set ft=yaml:
-
-version: 0.0.1
-
 tasks:
   build:
     cmd: 
@@ -16,9 +12,13 @@ tasks:
       - |+
         run cook clean
 
-  test:
+  test:old:
     cmd:
       - go test -json ./pkg/runfile | gotestfmt
+
+  test:
+    cmd:
+      - go test -json ./parser/... | gotestfmt
 
   test:only-failing:
     cmd:

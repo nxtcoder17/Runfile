@@ -62,11 +62,11 @@ tasks:
   laundry:
     name: laundry
     shell: ["node", "-e"]
-    env:
-      k4:
-        default:
-          sh: |+
-           console.log('1234' == '23344')
+    # env:
+    #   k4:
+    #     default:
+    #       sh: |+
+    #        console.log('1234' == '23344')
     cmd: 
       - run: cook
       - console.log(process.env.k4)

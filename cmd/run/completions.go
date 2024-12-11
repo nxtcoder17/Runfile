@@ -6,7 +6,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/nxtcoder17/runfile/pkg/runfile"
+	"github.com/nxtcoder17/runfile/parser"
 )
 
 func generateShellCompletion(_ context.Context, writer io.Writer, rfpath string) error {
@@ -20,7 +20,7 @@ func generateShellCompletion(_ context.Context, writer io.Writer, rfpath string)
 	// 	panic(err)
 	// }
 
-	runfile, err := runfile.Parse(rfpath)
+	runfile, err := parser.Parse(rfpath)
 	if err != nil {
 		slog.Error("parsing, got", "err", err)
 		panic(err)
@@ -30,17 +30,17 @@ func generateShellCompletion(_ context.Context, writer io.Writer, rfpath string)
 		fmt.Fprintf(writer, "%s\n", k)
 	}
 
-	m, err := runfile.ParseIncludes()
-	if err != nil {
-		slog.Error("parsing, got", "err", err)
-		panic(err)
-	}
+	// m, err := runfile.ParseIncludes()
+	// if err != nil {
+	// 	slog.Error("parsing, got", "err", err)
+	// 	panic(err)
+	// }
 
-	for k, v := range m {
-		for tn := range v.Runfile.Tasks {
-			fmt.Fprintf(writer, "%s:%s\n", k, tn)
-		}
-	}
+	// for k, v := range m {
+	// 	for tn := range v.Runfile.Tasks {
+	// 		fmt.Fprintf(writer, "%s:%s\n", k, tn)
+	// 	}
+	// }
 
 	return nil
 }

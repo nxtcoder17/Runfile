@@ -5,6 +5,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"github.com/phuslu/log"
 )
@@ -86,11 +88,26 @@ func New(opts Options) *slog.Logger {
 					fmt.Fprintf(w, "%s ", opts.Theme.LogLevelStyles[ParseLogLevel(args.Level)].Render(args.Level))
 				}
 
+				if opts.ShowCaller {
+					_, file, line, _ := runtime.Caller(7)
+					fmt.Fprintf(w, "%s:%d ", file, line)
+				}
+
 				fmt.Fprint(w, opts.Theme.MessageStyle.Render(args.Message))
 				for i := range args.KeyValues {
 					if args.KeyValues[i].Key == opts.SlogKeyAsPrefix {
 						continue
 					}
+
+					if args.KeyValues[i].Key == "runfile" {
+						pwd, _ := os.Getwd()
+						relpath, _ := filepath.Rel(pwd, args.KeyValues[i].Value)
+						if relpath == filepath.Base(args.KeyValues[i].Value) {
+							continue
+						}
+						args.KeyValues[i].Value = relpath
+					}
+
 					fmt.Fprintf(w, " %s%s%v", opts.Theme.SlogKeyStyle.Render(args.KeyValues[i].Key), opts.Theme.SlogKeyStyle.Faint(true).Render(opts.keyValueSeparator), opts.Theme.MessageStyle.Render(args.KeyValues[i].Value))
 				}
 

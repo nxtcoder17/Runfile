@@ -1,4 +1,26 @@
-package runfile
+package types
+
+type Runfile struct {
+	Version  string                 `json:"version,omitempty"`
+	Includes map[string]IncludeSpec `json:"includes"`
+	Env      EnvVar                 `json:"env,omitempty"`
+	DotEnv   []string               `json:"dotEnv,omitempty"`
+	Tasks    map[string]Task        `json:"tasks"`
+}
+
+type ParsedRunfile struct {
+	Env   map[string]string `json:"env,omitempty"`
+	Tasks map[string]Task   `json:"tasks"`
+
+	Metadata struct {
+		RunfilePath string
+	} `json:"-"`
+}
+
+type IncludeSpec struct {
+	Runfile string `json:"runfile"`
+	Dir     string `json:"dir,omitempty"`
+}
 
 // Only one of the fields must be set
 type Requires struct {
@@ -17,7 +39,16 @@ Object values with `sh` key, such that the output of this command will be the va
 */
 type EnvVar map[string]any
 
+type TaskMetadata struct {
+	RunfilePath string `json:"-"`
+	Description string `json:"description"`
+}
+
 type Task struct {
+	Metadata struct {
+		RunfilePath *string
+	}
+
 	Name string `json:"-"`
 	// Shell in which above commands will be executed
 	// Default: ["sh", "-c"]
@@ -68,4 +99,8 @@ type ParsedCommandJson struct {
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *bool `json:"if"`
+}
+
+type ParsedIncludeSpec struct {
+	Runfile *Runfile
 }

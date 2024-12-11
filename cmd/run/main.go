@@ -10,13 +10,20 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
-	"github.com/nxtcoder17/runfile/pkg/logging"
-	"github.com/nxtcoder17/runfile/pkg/runfile"
+	"github.com/nxtcoder17/runfile/errors"
+	"github.com/nxtcoder17/runfile/logging"
+	"github.com/nxtcoder17/runfile/runner"
+
+	// "github.com/nxtcoder17/runfile/pkg/runfile"
+
+	// "github.com/nxtcoder17/runfile/pkg/runfile"
+	"github.com/nxtcoder17/runfile/parser"
 	"github.com/urfave/cli/v3"
 )
 
-var Version string = "nightly"
+var Version string = fmt.Sprintf("nightly | %s", time.Now().Format(time.RFC3339))
 
 var runfileNames []string = []string{
 	"Runfile",
@@ -24,16 +31,16 @@ var runfileNames []string = []string{
 	"Runfile.yaml",
 }
 
-//go:embed completions/fish/run.fish
+//go:embed completions/run.fish
 var shellCompletionFISH string
 
-//go:embed completions/bash/run.bash
+//go:embed completions/run.bash
 var shellCompletionBASH string
 
-//go:embed completions/zsh/run.zsh
+//go:embed completions/run.zsh
 var shellCompletionZSH string
 
-//go:embed completions/ps/run.ps
+//go:embed completions/run.ps
 var shellCompletionPS string
 
 func main() {
@@ -72,8 +79,10 @@ func main() {
 				Aliases: []string{"ls"},
 			},
 		},
+
 		// ShellCompletionCommandName: "completion:shell",
 		EnableShellCompletion: true,
+
 		// DefaultCommand:             "help",
 		ShellComplete: func(ctx context.Context, c *cli.Command) {
 			if c.NArg() > 0 {
@@ -88,6 +97,33 @@ func main() {
 
 			generateShellCompletion(ctx, c.Root().Writer, runfilePath)
 		},
+
+		Commands: []*cli.Command{
+			{
+				Name:    "shell:completion",
+				Suggest: true,
+				Action: func(ctx context.Context, c *cli.Command) error {
+					if c.NArg() != 2 {
+						return fmt.Errorf("needs argument one of [bash,zsh,fish,ps]")
+					}
+
+					switch c.Args().Slice()[1] {
+					case "fish":
+						fmt.Fprint(c.Writer, shellCompletionFISH)
+					case "bash":
+						fmt.Fprint(c.Writer, shellCompletionBASH)
+					case "zsh":
+						fmt.Fprint(c.Writer, shellCompletionZSH)
+					case "ps":
+						fmt.Fprint(c.Writer, shellCompletionPS)
+					}
+
+					return nil
+				},
+			},
+		},
+
+		Suggest: true,
 		Action: func(ctx context.Context, c *cli.Command) error {
 			parallel := c.Bool("parallel")
 			watch := c.Bool("watch")
@@ -114,7 +150,7 @@ func main() {
 				return err
 			}
 
-			rf, err2 := runfile.Parse(runfilePath)
+			rf, err2 := parser.Parse(runfilePath)
 			if err2 != nil {
 				slog.Error("parsing runfile, got", "err", err2)
 				panic(err2)
@@ -154,45 +190,31 @@ func main() {
 			}
 
 			logger := logging.New(logging.Options{
+				ShowCaller:         true,
 				SlogKeyAsPrefix:    "task",
 				ShowDebugLogs:      debug,
 				SetAsDefaultLogger: true,
 			})
 
-			return rf.Run(runfile.NewContext(ctx, logger), runfile.RunArgs{
+			return runner.Run(runner.NewContext(ctx, logger), rf, runner.RunArgs{
 				Tasks:             args,
 				ExecuteInParallel: parallel,
 				Watch:             watch,
 				Debug:             debug,
 				KVs:               kv,
 			})
-		},
-		Commands: []*cli.Command{
-			{
-				Name: "shell:completion",
-				Action: func(ctx context.Context, c *cli.Command) error {
-					if c.NArg() != 2 {
-						return fmt.Errorf("needs argument one of [bash,zsh,fish,ps]")
-					}
 
-					switch c.Args().Slice()[1] {
-					case "fish":
-						fmt.Fprint(c.Writer, shellCompletionFISH)
-					case "bash":
-						fmt.Fprint(c.Writer, shellCompletionBASH)
-					case "zsh":
-						fmt.Fprint(c.Writer, shellCompletionZSH)
-					case "ps":
-						fmt.Fprint(c.Writer, shellCompletionPS)
-					}
-
-					return nil
-				},
-			},
+			// return rf.Run(runfile.NewContext(ctx, logger), runfile.RunArgs{
+			// 	Tasks:             args,
+			// 	ExecuteInParallel: parallel,
+			// 	Watch:             watch,
+			// 	Debug:             debug,
+			// 	KVs:               kv,
+			// })
 		},
 	}
 
-	ctx, cf := signal.NotifyContext(context.TODO(), os.Interrupt, syscall.SIGTERM)
+	ctx, cf := signal.NotifyContext(context.TODO(), syscall.SIGINT, syscall.SIGTERM)
 	defer cf()
 
 	go func() {
@@ -202,10 +224,13 @@ func main() {
 	}()
 
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		errm, ok := err.(*runfile.Error)
+		errm, ok := err.(*errors.Error)
 		slog.Debug("got", "err", err)
 		if ok {
 			if errm != nil {
+				// errm.Error()
+				// TODO: change it to a better logging
+				// slog.Error("got", "err", errm)
 				errm.Log()
 			}
 		} else {

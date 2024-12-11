@@ -1,5 +1,10 @@
 package functions
 
+import (
+	"fmt"
+	"os"
+)
+
 func DefaultIfNil[T any](v *T, dv T) T {
 	if v == nil {
 		return dv
@@ -19,4 +24,12 @@ func Must[T any](v T, err error) T {
 
 func New[T any](v T) *T {
 	return &v
+}
+
+func ToEnviron(m map[string]string) []string {
+	results := os.Environ()
+	for k, v := range m {
+		results = append(results, fmt.Sprintf("%s=%v", k, v))
+	}
+	return results
 }

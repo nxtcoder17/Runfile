@@ -1,4 +1,4 @@
-package runfile
+package parser
 
 import (
 	"bytes"
@@ -7,10 +7,11 @@ import (
 	"testing"
 )
 
-func Test_parseDotEnvFile(t *testing.T) {
+func Test_ParseDotEnvFile(t *testing.T) {
 	type args struct {
 		reader io.Reader
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -18,7 +19,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "key=",
+			name: "1. key=",
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key=`)),
 			},
@@ -28,7 +29,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "key=1",
+			name: "2. key=1",
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key=1`)),
 			},
@@ -38,7 +39,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "key=one",
+			name: "3. key=one",
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key=one`)),
 			},
@@ -48,7 +49,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "key='one'",
+			name: "4. key='one'",
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key='one'`)),
 			},
@@ -58,7 +59,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: `key='o"ne'`,
+			name: `5. key='o"ne'`,
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key='o"ne'`)),
 			},
@@ -68,7 +69,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: `key="one"`,
+			name: `6. key="one"`,
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key="one"`)),
 			},
@@ -78,7 +79,7 @@ func Test_parseDotEnvFile(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: `key=sample==`,
+			name: `7. key=sample==`,
 			args: args{
 				reader: bytes.NewBuffer([]byte(`key=sample==`)),
 			},
