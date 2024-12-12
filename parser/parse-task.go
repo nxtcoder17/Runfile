@@ -37,7 +37,7 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		Env: prf.Env,
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.WithErr(err)
 	}
 
 	for k, v := range tenv {

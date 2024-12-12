@@ -220,7 +220,6 @@ func main() {
 	go func() {
 		<-ctx.Done()
 		cf()
-		os.Exit(1)
 	}()
 
 	if err := cmd.Run(ctx, os.Args); err != nil {

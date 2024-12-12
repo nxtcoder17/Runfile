@@ -100,7 +100,7 @@ func Run(ctx Context, prf *types.ParsedRunfile, args RunArgs) error {
 			tn := _tn
 			g.Go(func() error {
 				if err := runTask(ctx, prf, runTaskArgs{taskName: tn}); err != nil {
-					return errors.ErrTaskFailed.Wrap(err).KV(attr(tn)...)
+					return errors.WithErr(err).KV(attr(tn)...)
 				}
 				return nil
 			})
@@ -116,7 +116,7 @@ func Run(ctx Context, prf *types.ParsedRunfile, args RunArgs) error {
 
 	for _, tn := range args.Tasks {
 		if err := runTask(ctx, prf, runTaskArgs{taskName: tn}); err != nil {
-			return errors.ErrTaskFailed.Wrap(err).KV(attr(tn)...)
+			return errors.WithErr(err).KV(attr(tn)...)
 		}
 	}
 
