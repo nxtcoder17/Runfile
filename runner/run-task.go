@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/alecthomas/chroma/quick"
+	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fwatcher/pkg/executor"
+	"github.com/nxtcoder17/fwatcher/pkg/watcher"
 	"github.com/nxtcoder17/runfile/errors"
 	fn "github.com/nxtcoder17/runfile/functions"
 	"github.com/nxtcoder17/runfile/parser"
@@ -143,6 +146,7 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 				borderColor = "#3d5485"
 			}
 			s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+			// labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor)).Blink(true)
 
 			hlCode := new(bytes.Buffer)
 			// choose colorschemes from `https://swapoff.org/chroma/playground/`
@@ -150,26 +154,18 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 			if !isDarkTheme() {
 				colorscheme = "monokailight"
 			}
-			quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
+			_ = colorscheme
+			// quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
+
+			cmdStr := strings.TrimSpace(command.Command)
+
+			quick.Highlight(hlCode, cmdStr, "bash", "terminal16m", colorscheme)
+			// cst := styles.Get("gruvbox")
+			// fmt.Println("cst: ", cst.Name, styles.Fallback.Name, styles.Names())
 
 			// fmt.Printf("%s\n", s.Render(args.taskName+" | "+hlCode.String()))
 			fmt.Printf("%s\n", s.Render(padString(hlCode.String(), args.taskName)))
 		}
-
-		// cmd := CreateCommand(ctx, CmdArgs{
-		// 	Shell:       pt.Shell,
-		// 	Env:         fn.ToEnviron(pt.Env),
-		// 	Cmd:         command.Command,
-		// 	WorkingDir:  pt.WorkingDir,
-		// 	interactive: pt.Interactive,
-		// 	Stdout:      os.Stdout,
-		// 	Stderr:      os.Stderr,
-		// })
-
-		// logger2 := logging.New(logging.Options{
-		// 	Prefix:        "executor",
-		// 	ShowDebugLogs: true,
-		// })
 
 		ex := executor.NewExecutor(executor.ExecutorArgs{
 			Logger: logger,
@@ -186,11 +182,47 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 			},
 		})
 
-		// if err := cmd.Run(); err != nil {
-		// 	return errors.ErrTaskFailed.Wrap(err).KV("cmd", cmd.String())
-		// }
+		if task.Watch.Enable {
+			watch, err := watcher.NewWatcher(watcher.WatcherArgs{
+				Logger:               logger,
+				WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
+				OnlySuffixes:         pt.Watch.OnlySuffixes,
+				IgnoreSuffixes:       pt.Watch.IgnoreSuffixes,
+				ExcludeDirs:          pt.Watch.ExcludeDirs,
+				UseDefaultIgnoreList: true,
+			})
+			if err != nil {
+				return errors.WithErr(err)
+			}
 
-		// wg.Wait()
+			go ex.Exec()
+
+			go func() {
+				<-ctx.Done()
+				logger.Info("fwatcher is closing ...")
+				<-time.After(200 * time.Millisecond)
+				os.Exit(0)
+			}()
+
+			// if err := ex.Exec(); err != nil {
+			// 	return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
+			// }
+
+			watch.WatchEvents(func(event watcher.Event, fp string) error {
+				relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)
+				if err != nil {
+					return err
+				}
+				logger.Info(fmt.Sprintf("[RELOADING] due changes in %s", relPath))
+				ex.Kill()
+				<-time.After(100 * time.Millisecond)
+				go ex.Exec()
+				return nil
+			})
+
+			return nil
+		}
+
 		if err := ex.Exec(); err != nil {
 			return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
 		}

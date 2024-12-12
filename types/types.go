@@ -29,7 +29,7 @@ type Requires struct {
 }
 
 /*
-EnvVar Values could take multiple forms:
+// EnvVar Values could take multiple forms:
 - my_key: "value"
 or
   - my_key:
@@ -42,6 +42,14 @@ type EnvVar map[string]any
 type TaskMetadata struct {
 	RunfilePath string `json:"-"`
 	Description string `json:"description"`
+}
+
+type TaskWatch struct {
+	Enable         bool     `json:"enable"`
+	Dirs           []string `json:"dirs"`
+	OnlySuffixes   []string `json:"onlySuffixes"`
+	IgnoreSuffixes []string `json:"ignoreSuffixes"`
+	ExcludeDirs    []string `json:"excludeDirs"`
 }
 
 type Task struct {
@@ -67,8 +75,7 @@ type Task struct {
 
 	Env EnvVar `json:"env,omitempty"`
 
-	// this field is for testing purposes only
-	ignoreSystemEnv bool `json:"-"`
+	Watch TaskWatch `json:"watch"`
 
 	Requires []*Requires `json:"requires,omitempty"`
 
