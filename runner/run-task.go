@@ -168,7 +168,8 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 		}
 
 		ex := executor.NewExecutor(executor.ExecutorArgs{
-			Logger: logger,
+			Logger:        logger,
+			IsInteractive: pt.Interactive,
 			Command: func(c context.Context) *exec.Cmd {
 				return CreateCommand(c, CmdArgs{
 					Shell:       pt.Shell,
@@ -183,7 +184,7 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 		})
 
 		if task.Watch.Enable {
-			watch, err := watcher.NewWatcher(watcher.WatcherArgs{
+			watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
 				Logger:               logger,
 				WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
 				OnlySuffixes:         pt.Watch.OnlySuffixes,

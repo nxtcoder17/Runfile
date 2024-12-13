@@ -80,10 +80,12 @@ tasks:
       - gotmpl: gt (len "sdfsdfas") 5
     cmd: 
       - echo "eat"
+
   sleep:
     name: sleep
     cmd:
       - echo "sleep"
+
   code:
     name: code
     cmd:
