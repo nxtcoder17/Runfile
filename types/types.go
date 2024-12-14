@@ -8,15 +8,6 @@ type Runfile struct {
 	Tasks    map[string]Task        `json:"tasks"`
 }
 
-type ParsedRunfile struct {
-	Env   map[string]string `json:"env,omitempty"`
-	Tasks map[string]Task   `json:"tasks"`
-
-	Metadata struct {
-		RunfilePath string
-	} `json:"-"`
-}
-
 type IncludeSpec struct {
 	Runfile string `json:"runfile"`
 	Dir     string `json:"dir,omitempty"`

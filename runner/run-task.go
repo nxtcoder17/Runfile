@@ -25,6 +25,8 @@ type runTaskArgs struct {
 	taskTrail    []string
 	taskName     string
 	envOverrides map[string]string
+
+	DebugEnv bool
 }
 
 func isDarkTheme() bool {
@@ -148,13 +150,16 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 			s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
 			// labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor)).Blink(true)
 
+			if args.DebugEnv {
+				fmt.Printf("%s\n", s.Render(padString(fmt.Sprintf("%+v", prf.Env), "DEBUG: env")))
+			}
+
 			hlCode := new(bytes.Buffer)
 			// choose colorschemes from `https://swapoff.org/chroma/playground/`
 			colorscheme := "catppuccin-macchiato"
 			if !isDarkTheme() {
 				colorscheme = "monokailight"
 			}
-			_ = colorscheme
 			// quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
 
 			cmdStr := strings.TrimSpace(command.Command)
@@ -204,10 +209,6 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 				<-time.After(200 * time.Millisecond)
 				os.Exit(0)
 			}()
-
-			// if err := ex.Exec(); err != nil {
-			// 	return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
-			// }
 
 			watch.WatchEvents(func(event watcher.Event, fp string) error {
 				relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)

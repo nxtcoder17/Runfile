@@ -12,33 +12,27 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-func parse(file string) (*types.ParsedRunfile, error) {
-	var runfile types.Runfile
-	f, err := os.ReadFile(file)
-	if err != nil {
-		return nil, errors.ErrReadRunfile.Wrap(err).KV("file", file)
+func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
+	prf := &types.ParsedRunfile{
+		Env:   make(map[string]string),
+		Tasks: make(map[string]types.Task),
 	}
 
-	if err = yaml.Unmarshal(f, &runfile); err != nil {
-		return nil, errors.ErrParseRunfile.Wrap(err).KV("file", file)
-	}
-
-	var prf types.ParsedRunfile
-
-	// prf.Metadata.RunfilePath = fn.Must(filepath.Rel(fn.Must(os.Getwd()), file))
-	prf.Metadata.RunfilePath = file
+	prf.Tasks = runfile.Tasks
 
 	m, err := parseIncludes(runfile.Includes)
 	if err != nil {
 		return nil, err
 	}
 
-	prf.Tasks = runfile.Tasks
 	for k, iprf := range m {
 		for taskName, task := range iprf.Tasks {
 			task.Metadata.RunfilePath = &iprf.Metadata.RunfilePath
-			// task.Metadata.RunfilePath = fn.New(fn.Must(filepath.Rel(fn.Must(os.Getwd()), iprf.Metadata.RunfilePath)))
 			prf.Tasks[fmt.Sprintf("%s:%s", k, taskName)] = task
+		}
+
+		for k, v := range iprf.Env {
+			prf.Env[k] = v
 		}
 	}
 
@@ -58,11 +52,32 @@ func parse(file string) (*types.ParsedRunfile, error) {
 		return nil, err
 	}
 
-	prf.Env = fn.MapMerge(dotenvVars, envVars)
+	prf.Env = fn.MapMerge(prf.Env, dotenvVars, envVars)
 
-	return &prf, nil
+	return prf, nil
 }
 
-func Parse(file string) (*types.ParsedRunfile, error) {
-	return parse(file)
+func parseRunfileFromFile(file string) (*types.ParsedRunfile, error) {
+	var runfile types.Runfile
+
+	f, err := os.ReadFile(file)
+	if err != nil {
+		return nil, errors.ErrReadRunfile.Wrap(err).KV("file", file)
+	}
+
+	if err := yaml.Unmarshal(f, &runfile); err != nil {
+		return nil, errors.ErrParseRunfile.Wrap(err)
+	}
+
+	prf, err := parseRunfile(&runfile)
+	if err != nil {
+		return nil, err
+	}
+
+	prf.Metadata.RunfilePath = file
+	return prf, nil
+}
+
+func ParseRunfile(file string) (*types.ParsedRunfile, error) {
+	return parseRunfileFromFile(file)
 }

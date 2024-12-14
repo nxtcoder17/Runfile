@@ -115,7 +115,7 @@ func Run(ctx Context, prf *types.ParsedRunfile, args RunArgs) error {
 	}
 
 	for _, tn := range args.Tasks {
-		if err := runTask(ctx, prf, runTaskArgs{taskName: tn}); err != nil {
+		if err := runTask(ctx, prf, runTaskArgs{taskName: tn, DebugEnv: false}); err != nil {
 			return errors.WithErr(err).KV(attr(tn)...)
 		}
 	}

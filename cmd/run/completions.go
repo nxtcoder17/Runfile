@@ -20,7 +20,7 @@ func generateShellCompletion(_ context.Context, writer io.Writer, rfpath string)
 	// 	panic(err)
 	// }
 
-	runfile, err := parser.Parse(rfpath)
+	runfile, err := parser.ParseRunfile(rfpath)
 	if err != nil {
 		slog.Error("parsing, got", "err", err)
 		panic(err)

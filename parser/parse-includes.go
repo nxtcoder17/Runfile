@@ -8,7 +8,7 @@ import (
 func parseIncludes(includes map[string]types.IncludeSpec) (map[string]*types.ParsedRunfile, error) {
 	m := make(map[string]*types.ParsedRunfile, len(includes))
 	for k, v := range includes {
-		r, err := parse(v.Runfile)
+		r, err := parseRunfileFromFile(v.Runfile)
 		if err != nil {
 			return nil, errors.ErrParseIncludes.Wrap(err).KV("include", v.Runfile)
 		}

@@ -1,4 +1,5 @@
-version: 0.0.1
+env:
+  file1_env1: "value1"
 
 tasks:
   echo:
@@ -11,3 +12,7 @@ tasks:
     interactive: true
     cmd:
       - node
+
+  printenv:
+    cmd:
+      - printenv file1_env1

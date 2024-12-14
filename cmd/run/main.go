@@ -78,6 +78,11 @@ func main() {
 				Value:   false,
 				Aliases: []string{"ls"},
 			},
+
+			&cli.BoolFlag{
+				Name:  "debug-env",
+				Value: false,
+			},
 		},
 
 		// ShellCompletionCommandName: "completion:shell",
@@ -150,7 +155,7 @@ func main() {
 				return err
 			}
 
-			rf, err2 := parser.Parse(runfilePath)
+			rf, err2 := parser.ParseRunfile(runfilePath)
 			if err2 != nil {
 				slog.Error("parsing runfile, got", "err", err2)
 				panic(err2)

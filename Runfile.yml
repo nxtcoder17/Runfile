@@ -17,8 +17,22 @@ tasks:
       - go test -json ./pkg/runfile | gotestfmt
 
   test:
+    env:
+      pattern:
+        default: ""
+    watch:
+      enable: true
+      dir:
+        - ./parser
+      onlySuffixes:
+        - .go
     cmd:
-      - go test -json ./parser/... | gotestfmt
+      - |+
+        if [ -z "$pattern" ]; then
+          go test -json ./parser/... | gotestfmt
+        else
+          go test -json ./parser/... -run "$pattern" | gotestfmt
+        fi
 
   test:only-failing:
     cmd:
