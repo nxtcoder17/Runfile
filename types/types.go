@@ -36,7 +36,7 @@ type TaskMetadata struct {
 }
 
 type TaskWatch struct {
-	Enable         bool     `json:"enable"`
+	Enable         *bool    `json:"enable,omitempty"`
 	Dirs           []string `json:"dirs"`
 	OnlySuffixes   []string `json:"onlySuffixes"`
 	IgnoreSuffixes []string `json:"ignoreSuffixes"`
@@ -66,7 +66,7 @@ type Task struct {
 
 	Env EnvVar `json:"env,omitempty"`
 
-	Watch TaskWatch `json:"watch"`
+	Watch *TaskWatch `json:"watch"`
 
 	Requires []*Requires `json:"requires,omitempty"`
 

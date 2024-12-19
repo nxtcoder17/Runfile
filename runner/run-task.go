@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/alecthomas/chroma/v2/quick"
@@ -17,6 +18,7 @@ import (
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
 	"github.com/nxtcoder17/runfile/errors"
 	fn "github.com/nxtcoder17/runfile/functions"
+	"github.com/nxtcoder17/runfile/logging"
 	"github.com/nxtcoder17/runfile/parser"
 	"github.com/nxtcoder17/runfile/types"
 )
@@ -53,45 +55,27 @@ func isTTY() bool {
 	return ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
 }
 
-func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
-	runfilePath := prf.Metadata.RunfilePath
-	task := prf.Tasks[args.taskName]
-
-	if task.Metadata.RunfilePath != nil {
-		runfilePath = *task.Metadata.RunfilePath
-	}
-
-	trail := append(args.taskTrail, args.taskName)
-
-	logger := ctx.With("task", args.taskName, "runfile", runfilePath)
-	logger.Debug("running task")
-
-	task, ok := prf.Tasks[args.taskName]
-	if !ok {
-		return errors.ErrTaskNotFound
-	}
-
-	task.Name = args.taskName
-
-	pt, err := parser.ParseTask(ctx, prf, task)
-	if err != nil {
-		return errors.WithErr(err)
-	}
-
+func runCommand(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) error {
 	for _, command := range pt.Commands {
-		logger.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
+		ctx.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
 
 		if command.If != nil && !*command.If {
-			logger.Debug("skipping execution for failed `if`", "command", command.Run)
+			ctx.Debug("skipping execution for failed `if`", "command", command.Run)
 			continue
 		}
 
 		if command.Run != "" {
-			if err := runTask(ctx, prf, runTaskArgs{
-				taskTrail:    trail,
-				taskName:     command.Run,
-				envOverrides: pt.Env,
-			}); err != nil {
+			rt, ok := prf.Tasks[command.Run]
+			if !ok {
+				return fmt.Errorf("invalid run target")
+			}
+
+			rtp, err := parser.ParseTask(ctx, prf, rt)
+			if err != nil {
+				return errors.WithErr(err).KV("env-vars", prf.Env)
+			}
+
+			if err := runCommand(ctx, prf, rtp, args); err != nil {
 				return errors.WithErr(err).KV("env-vars", prf.Env)
 			}
 			continue
@@ -172,8 +156,14 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 			fmt.Printf("%s\n", s.Render(padString(hlCode.String(), args.taskName)))
 		}
 
+		logger2 := logging.New(logging.Options{
+			Prefix:          "[runfile]",
+			Writer:          os.Stderr,
+			SlogKeyAsPrefix: "task",
+		})
+
 		ex := executor.NewExecutor(executor.ExecutorArgs{
-			Logger:        logger,
+			Logger:        logger2,
 			IsInteractive: pt.Interactive,
 			Command: func(c context.Context) *exec.Cmd {
 				return CreateCommand(c, CmdArgs{
@@ -188,47 +178,144 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 			},
 		})
 
-		if task.Watch.Enable {
-			watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
-				Logger:               logger,
-				WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
-				OnlySuffixes:         pt.Watch.OnlySuffixes,
-				IgnoreSuffixes:       pt.Watch.IgnoreSuffixes,
-				ExcludeDirs:          pt.Watch.ExcludeDirs,
-				UseDefaultIgnoreList: true,
-			})
-			if err != nil {
-				return errors.WithErr(err)
-			}
-
-			go ex.Exec()
-
-			go func() {
-				<-ctx.Done()
-				logger.Info("fwatcher is closing ...")
-				<-time.After(200 * time.Millisecond)
-				os.Exit(0)
-			}()
-
-			watch.WatchEvents(func(event watcher.Event, fp string) error {
-				relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)
-				if err != nil {
-					return err
-				}
-				logger.Info(fmt.Sprintf("[RELOADING] due changes in %s", relPath))
-				ex.Kill()
-				<-time.After(100 * time.Millisecond)
-				go ex.Exec()
-				return nil
-			})
-
-			return nil
-		}
+		// if task.Watch != nil && (task.Watch.Enable == nil || *task.Watch.Enable) {
+		// 	watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
+		// 		Logger:               logger,
+		// 		WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
+		// 		OnlySuffixes:         pt.Watch.OnlySuffixes,
+		// 		IgnoreSuffixes:       pt.Watch.IgnoreSuffixes,
+		// 		ExcludeDirs:          pt.Watch.ExcludeDirs,
+		// 		UseDefaultIgnoreList: true,
+		// 		// CooldownDuration:     fn.New(1 * time.Second),
+		// 	})
+		// 	if err != nil {
+		// 		return errors.WithErr(err)
+		// 	}
+		//
+		// 	go ex.Exec()
+		//
+		// 	go func() {
+		// 		<-ctx.Done()
+		// 		logger.Debug("fwatcher is closing ...")
+		// 		watch.Close()
+		// 		<-time.After(200 * time.Millisecond)
+		// 		logger.Info("CLOSING..................")
+		// 		os.Exit(0)
+		// 	}()
+		//
+		// 	watch.WatchEvents(func(event watcher.Event, fp string) error {
+		// 		relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)
+		// 		if err != nil {
+		// 			return err
+		// 		}
+		// 		logger.Info(fmt.Sprintf("[RELOADING] due changes in %s", relPath))
+		// 		ex.Kill()
+		// 		select {
+		// 		case <-time.After(100 * time.Millisecond):
+		// 			go ex.Exec()
+		// 			return nil
+		// 		case <-ctx.Done():
+		// 			logger.Info("close signal received")
+		// 			watch.Close()
+		// 			return nil
+		// 		}
+		// 	})
+		//
+		// 	return nil
+		// }
 
 		if err := ex.Exec(); err != nil {
 			return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
 		}
 	}
+
+	return nil
+}
+
+func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
+	runfilePath := prf.Metadata.RunfilePath
+	task := prf.Tasks[args.taskName]
+
+	if task.Metadata.RunfilePath != nil {
+		runfilePath = *task.Metadata.RunfilePath
+	}
+
+	args.taskTrail = append(args.taskTrail, args.taskName)
+
+	logger := ctx.With("task", args.taskName, "runfile", runfilePath)
+	logger.Debug("running task")
+
+	task, ok := prf.Tasks[args.taskName]
+	if !ok {
+		return errors.ErrTaskNotFound
+	}
+
+	task.Name = args.taskName
+
+	pt, err := parser.ParseTask(ctx, prf, task)
+	if err != nil {
+		return errors.WithErr(err)
+	}
+
+	nctx, cf := context.WithCancel(ctx)
+	defer cf()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		runCommand(NewContext(nctx, ctx.Logger), prf, pt, args)
+	}()
+
+	if pt.Watch != nil && (pt.Watch.Enable == nil || *pt.Watch.Enable) {
+		watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
+			Logger:               logger,
+			WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
+			OnlySuffixes:         pt.Watch.OnlySuffixes,
+			IgnoreSuffixes:       pt.Watch.IgnoreSuffixes,
+			ExcludeDirs:          pt.Watch.ExcludeDirs,
+			UseDefaultIgnoreList: true,
+			// CooldownDuration:     fn.New(1 * time.Second),
+		})
+		if err != nil {
+			return errors.WithErr(err)
+		}
+
+		go func() {
+			<-ctx.Done()
+			logger.Debug("fwatcher is closing ...")
+			watch.Close()
+			<-time.After(200 * time.Millisecond)
+			logger.Info("CLOSING..................")
+			os.Exit(0)
+		}()
+
+		watch.WatchEvents(func(event watcher.Event, fp string) error {
+			relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)
+			if err != nil {
+				return err
+			}
+			logger.Info(fmt.Sprintf("[RELOADING] due changes in %s", relPath))
+			select {
+			case <-time.After(100 * time.Millisecond):
+				cf()
+
+				nctx, cf = context.WithCancel(ctx)
+				go runCommand(NewContext(nctx, ctx.Logger), prf, pt, args)
+
+				return nil
+			case <-ctx.Done():
+				logger.Info("close signal received")
+				watch.Close()
+				return nil
+			}
+		})
+
+		return nil
+	}
+
+	wg.Wait()
 
 	return nil
 }
