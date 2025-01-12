@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
@@ -162,19 +160,21 @@ func runCommand(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, arg
 		SlogKeyAsPrefix: "task",
 	})
 
-	ex := executor.NewExecutor(executor.ExecutorArgs{
-		Logger:        logger2,
-		IsInteractive: pt.Interactive,
-		Command: func(c context.Context) *exec.Cmd {
-			return CreateCommand(c, CmdArgs{
-				Shell:       pt.Shell,
-				Env:         fn.ToEnviron(pt.Env),
-				Cmd:         command.Command,
-				WorkingDir:  pt.WorkingDir,
-				interactive: pt.Interactive,
-				Stdout:      os.Stdout,
-				Stderr:      os.Stderr,
-			})
+	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
+		Logger:      logger2,
+		Interactive: pt.Interactive,
+		Commands: func(c context.Context) []*exec.Cmd {
+			return []*exec.Cmd{
+				CreateCommand(c, CmdArgs{
+					Shell:       pt.Shell,
+					Env:         fn.ToEnviron(pt.Env),
+					Cmd:         command.Command,
+					WorkingDir:  pt.WorkingDir,
+					interactive: pt.Interactive,
+					Stdout:      os.Stdout,
+					Stderr:      os.Stderr,
+				}),
+			}
 		},
 	})
 
@@ -182,56 +182,10 @@ func runCommand(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, arg
 	go func() {
 		defer wg.Done()
 		<-ctx.Done()
-		ex.Kill()
+		ex.Stop()
 	}()
 
-	// if task.Watch != nil && (task.Watch.Enable == nil || *task.Watch.Enable) {
-	// 	watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
-	// 		Logger:               logger,
-	// 		WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
-	// 		OnlySuffixes:         pt.Watch.OnlySuffixes,
-	// 		IgnoreSuffixes:       pt.Watch.IgnoreSuffixes,
-	// 		ExcludeDirs:          pt.Watch.ExcludeDirs,
-	// 		UseDefaultIgnoreList: true,
-	// 		// CooldownDuration:     fn.New(1 * time.Second),
-	// 	})
-	// 	if err != nil {
-	// 		return errors.WithErr(err)
-	// 	}
-	//
-	// 	go ex.Exec()
-	//
-	// 	go func() {
-	// 		<-ctx.Done()
-	// 		logger.Debug("fwatcher is closing ...")
-	// 		watch.Close()
-	// 		<-time.After(200 * time.Millisecond)
-	// 		logger.Info("CLOSING..................")
-	// 		os.Exit(0)
-	// 	}()
-	//
-	// 	watch.WatchEvents(func(event watcher.Event, fp string) error {
-	// 		relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		logger.Info(fmt.Sprintf("[RELOADING] due changes in %s", relPath))
-	// 		ex.Kill()
-	// 		select {
-	// 		case <-time.After(100 * time.Millisecond):
-	// 			go ex.Exec()
-	// 			return nil
-	// 		case <-ctx.Done():
-	// 			logger.Info("close signal received")
-	// 			watch.Close()
-	// 			return nil
-	// 		}
-	// 	})
-	//
-	// 	return nil
-	// }
-
-	if err := ex.Exec(); err != nil {
+	if err := ex.Start(); err != nil {
 		return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
 	}
 
@@ -278,56 +232,70 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 
 	var wg sync.WaitGroup
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		runTaskCommands(NewContext(nctx, ctx.Logger), prf, pt, args)
-	}()
-
-	if pt.Watch != nil && (pt.Watch.Enable == nil || *pt.Watch.Enable) {
-		watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
-			Logger:               logger,
-			WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
-			OnlySuffixes:         pt.Watch.OnlySuffixes,
-			IgnoreSuffixes:       pt.Watch.IgnoreSuffixes,
-			ExcludeDirs:          pt.Watch.ExcludeDirs,
-			UseDefaultIgnoreList: true,
-			CooldownDuration:     fn.New(1 * time.Second),
-		})
-		if err != nil {
-			return errors.WithErr(err)
+	switch pt.Watch == nil {
+	case true:
+		{
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				runTaskCommands(NewContext(nctx, ctx.Logger), prf, pt, args)
+			}()
 		}
+	case false:
+		{
+			if pt.Watch != nil && (pt.Watch.Enable == nil || *pt.Watch.Enable) {
+				watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
+					Logger:          logger,
+					WatchDirs:       append(task.Watch.Dirs, pt.WorkingDir),
+					WatchExtensions: pt.Watch.Dirs,
+					IgnoreList:      watcher.DefaultIgnoreList,
+					Interactive:     pt.Interactive,
+				})
+				if err != nil {
+					return errors.WithErr(err)
+				}
 
-		go func() {
-			<-ctx.Done()
-			logger.Debug("fwatcher is closing ...")
-			watch.Close()
-		}()
-
-		watch.WatchEvents(func(event watcher.Event, fp string) error {
-			relPath, err := filepath.Rel(fn.Must(os.Getwd()), fp)
-			if err != nil {
-				return err
-			}
-			logger.Info(fmt.Sprintf("[RELOADING] due changes in %s", relPath))
-			select {
-			case <-time.After(100 * time.Millisecond):
-				cf()
-
-				nctx, cf = context.WithCancel(ctx)
-				wg.Add(1)
 				go func() {
-					defer wg.Done()
-					runTaskCommands(NewContext(nctx, ctx.Logger), prf, pt, args)
+					<-ctx.Done()
+					logger.Debug("fwatcher is closing ...")
+					watch.Close()
 				}()
 
-				return nil
-			case <-ctx.Done():
-				logger.Info("close signal received")
-				watch.Close()
-				return nil
+				var executors []executor.Executor
+
+				if task.Watch.SSE != nil && task.Watch.SSE.Addr != "" {
+					executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: task.Watch.SSE.Addr}))
+				}
+
+				if len(pt.Commands) > 0 {
+					executors = append(executors, executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
+						Logger:      logger,
+						Interactive: pt.Interactive,
+						Commands: func(c context.Context) []*exec.Cmd {
+							cmds := make([]*exec.Cmd, 0, len(pt.Commands))
+
+							for i := range pt.Commands {
+								cmds = append(cmds, CreateCommand(c, CmdArgs{
+									Shell:       pt.Shell,
+									Env:         fn.ToEnviron(pt.Env),
+									Cmd:         pt.Commands[i].Command,
+									WorkingDir:  pt.WorkingDir,
+									interactive: pt.Interactive,
+									Stdout:      os.Stdout,
+									Stderr:      os.Stderr,
+								}))
+							}
+
+							return cmds
+						},
+					}))
+				}
+
+				if err := watch.WatchAndExecute(ctx, executors); err != nil {
+					return err
+				}
 			}
-		})
+		}
 
 		return nil
 	}

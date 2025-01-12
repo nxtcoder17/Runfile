@@ -195,7 +195,7 @@ func main() {
 			}
 
 			logger := logging.New(logging.Options{
-				ShowCaller:         true,
+				ShowCaller:         false,
 				SlogKeyAsPrefix:    "task",
 				ShowDebugLogs:      debug,
 				SetAsDefaultLogger: true,

@@ -6,6 +6,13 @@ tasks:
         go build -o bin/run -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
         echo "DONE"
 
+  build:dev:
+    cmd: 
+      - |+
+        echo "building ..."
+        go build -o bin/run-dev -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
+        echo "DONE"
+
   example:
     dir: ./examples
     cmd: 

@@ -36,11 +36,13 @@ type TaskMetadata struct {
 }
 
 type TaskWatch struct {
-	Enable         *bool    `json:"enable,omitempty"`
-	Dirs           []string `json:"dirs"`
-	OnlySuffixes   []string `json:"onlySuffixes"`
-	IgnoreSuffixes []string `json:"ignoreSuffixes"`
-	ExcludeDirs    []string `json:"excludeDirs"`
+	Enable     *bool    `json:"enable,omitempty"`
+	Dirs       []string `json:"dirs"`
+	Extensions []string `json:"extensions"`
+	SSE        *struct {
+		Addr string `json:"addr"`
+	} `json:"sse,omitempty"`
+	// ExcludeDirs []string `json:"excludeDirs"`
 }
 
 type Task struct {
