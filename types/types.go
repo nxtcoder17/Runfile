@@ -86,21 +86,15 @@ type Task struct {
 type CommandJson struct {
 	Command string `json:"cmd"`
 	Run     string `json:"run"`
-	Env     string `json:"env"`
+
+	Commands []string `json:"cmds,omitempty"`
+	Runs     []string `json:"runs,omitempty"`
+
+	Env string `json:"env"`
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`
-}
 
-type ParsedCommandJson struct {
-	Command string `json:"cmd"`
-	Run     string `json:"run"`
-	Env     string `json:"env"`
-
-	// If is a go template expression, which must evaluate to true, for task to run
-	If *bool `json:"if"`
-}
-
-type ParsedIncludeSpec struct {
-	Runfile *Runfile
+	// Parallel allows you to run commands or run targets in parallel
+	Parallel bool `json:"parallel"`
 }

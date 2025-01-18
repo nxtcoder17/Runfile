@@ -1,7 +1,7 @@
 package runner
 
 import (
-	"bytes"
+	// "bytes"
 	"context"
 	"fmt"
 	"os"
@@ -9,14 +9,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alecthomas/chroma/v2/quick"
-	"github.com/charmbracelet/lipgloss"
+	// "github.com/alecthomas/chroma/v2/quick"
+	// "github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fwatcher/pkg/executor"
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
 	"github.com/nxtcoder17/runfile/errors"
 	fn "github.com/nxtcoder17/runfile/functions"
-	"github.com/nxtcoder17/runfile/logging"
 	"github.com/nxtcoder17/runfile/parser"
 	"github.com/nxtcoder17/runfile/types"
 )
@@ -53,154 +52,207 @@ func isTTY() bool {
 	return ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
 }
 
-func runCommand(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs, command types.ParsedCommandJson) error {
-	ctx.Debug("running command task", "command.run", command.Run, "parent.task", args.taskName)
-	var wg sync.WaitGroup
+func createCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) ([]func(c context.Context) *exec.Cmd, error) {
+	var cmds []func(c context.Context) *exec.Cmd
 
-	if command.If != nil && !*command.If {
-		ctx.Debug("skipping execution for failed `if`", "command", command.Run)
-		return nil
-	}
+	for _, cmd := range pt.Commands {
+		switch {
+		case len(cmd.Runs) > 0:
+			{
+				for _, run := range cmd.Runs {
+					rt, ok := prf.Tasks[run]
+					if !ok {
+						return nil, fmt.Errorf("invalid run target")
+					}
 
-	if command.Run != "" {
-		rt, ok := prf.Tasks[command.Run]
-		if !ok {
-			return fmt.Errorf("invalid run target")
-		}
+					rtp, err := parser.ParseTask(ctx, prf, rt)
+					if err != nil {
+						return nil, errors.WithErr(err).KV("env-vars", prf.Env)
+					}
 
-		rtp, err := parser.ParseTask(ctx, prf, rt)
-		if err != nil {
-			return errors.WithErr(err).KV("env-vars", prf.Env)
-		}
+					rtExecutors, err := createCommands(ctx, prf, rtp, args)
+					if err != nil {
+						return nil, errors.WithErr(err).KV("env-vars", prf.Env)
+					}
 
-		if err := runTaskCommands(ctx, prf, rtp, args); err != nil {
-			return errors.WithErr(err).KV("env-vars", prf.Env)
-		}
-		return nil
-	}
-
-	// stdoutR, stdoutW := io.Pipe()
-	// stderrR, stderrW := io.Pipe()
-
-	// wg := sync.WaitGroup{}
-
-	// [snippet source](https://rderik.com/blog/identify-if-output-goes-to-the-terminal-or-is-being-redirected-in-golang/)
-	// stdout, _ := os.Stdout.Stat()
-	// stderr, _ := os.Stderr.Stat()
-	// isTTY := ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
-	//
-	// if isTTY {
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-	// 		processOutput(os.Stdout, stdoutR, &logPrefix)
-	//
-	// 		stderrPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
-	// 		processOutput(os.Stderr, stderrR, &stderrPrefix)
-	// 	}()
-	// } else {
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-	// 		processOutput(os.Stdout, stdoutR, &logPrefix)
-	// 		// if pt.Interactive {
-	// 		// 	processOutput(os.Stdout, stdoutR, &logPrefix)
-	// 		// 	return
-	// 		// }
-	// 		// processOutputLineByLine(os.Stdout, stdoutR, &logPrefix)
-	// 	}()
-	//
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
-	// 		processOutput(os.Stderr, stderrR, &logPrefix)
-	// 		// if pt.Interactive {
-	// 		// 	processOutput(os.Stderr, stderrR, &logPrefix)
-	// 		// 	return
-	// 		// }
-	// 		// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
-	// 	}()
-	// }
-
-	if isTTY() {
-		borderColor := "#4388cc"
-		if !isDarkTheme() {
-			borderColor = "#3d5485"
-		}
-		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
-		// labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor)).Blink(true)
-
-		if args.DebugEnv {
-			fmt.Printf("%s\n", s.Render(padString(fmt.Sprintf("%+v", prf.Env), "DEBUG: env")))
-		}
-
-		hlCode := new(bytes.Buffer)
-		// choose colorschemes from `https://swapoff.org/chroma/playground/`
-		colorscheme := "catppuccin-macchiato"
-		if !isDarkTheme() {
-			colorscheme = "monokailight"
-		}
-		// quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
-
-		cmdStr := strings.TrimSpace(command.Command)
-
-		quick.Highlight(hlCode, cmdStr, "bash", "terminal16m", colorscheme)
-		// cst := styles.Get("gruvbox")
-		// fmt.Println("cst: ", cst.Name, styles.Fallback.Name, styles.Names())
-
-		// fmt.Printf("%s\n", s.Render(args.taskName+" | "+hlCode.String()))
-		fmt.Printf("%s\n", s.Render(padString(hlCode.String(), args.taskName)))
-	}
-
-	logger2 := logging.New(logging.Options{
-		Prefix:          "[runfile]",
-		Writer:          os.Stderr,
-		SlogKeyAsPrefix: "task",
-	})
-
-	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
-		Logger:      logger2,
-		Interactive: pt.Interactive,
-		Commands: func(c context.Context) []*exec.Cmd {
-			return []*exec.Cmd{
-				CreateCommand(c, CmdArgs{
-					Shell:       pt.Shell,
-					Env:         fn.ToEnviron(pt.Env),
-					Cmd:         command.Command,
-					WorkingDir:  pt.WorkingDir,
-					interactive: pt.Interactive,
-					Stdout:      os.Stdout,
-					Stderr:      os.Stderr,
-				}),
+					cmds = append(cmds, rtExecutors...)
+				}
 			}
-		},
-	})
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		ex.Stop()
-	}()
-
-	if err := ex.Start(); err != nil {
-		return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
-	}
-
-	return nil
-}
-
-func runTaskCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) error {
-	for _, command := range pt.Commands {
-		if err := runCommand(ctx, prf, pt, args, command); err != nil {
-			return err
+		case len(cmd.Commands) > 0:
+			{
+				for i := range cmd.Commands {
+					cmds = append(cmds, func(c context.Context) *exec.Cmd {
+						return CreateCommand(ctx, CmdArgs{
+							Shell:       pt.Shell,
+							Env:         fn.ToEnviron(pt.Env),
+							Cmd:         cmd.Commands[i],
+							WorkingDir:  pt.WorkingDir,
+							interactive: pt.Interactive,
+							Stdout:      os.Stdout,
+							Stderr:      os.Stderr,
+						})
+					})
+				}
+			}
 		}
 	}
 
-	return nil
+	return cmds, nil
 }
+
+// func runCommand(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs, command types.ParsedCommandJson) error {
+// 	ctx.Debug("running command task", "command.run", command.Runs, "parent.task", args.taskName)
+// 	if command.If != nil && !*command.If {
+// 		ctx.Debug("skipping execution for failed `if`", "command", command.Runs)
+// 		return nil
+// 	}
+//
+// 	if command.Runs != nil {
+// 		for _, run := range command.Runs {
+// 			rt, ok := prf.Tasks[run]
+// 			if !ok {
+// 				return fmt.Errorf("invalid run target")
+// 			}
+//
+// 			rtp, err := parser.ParseTask(ctx, prf, rt)
+// 			if err != nil {
+// 				return errors.WithErr(err).KV("env-vars", prf.Env)
+// 			}
+//
+// 			if err := runTaskCommands(ctx, prf, rtp, args); err != nil {
+// 				return errors.WithErr(err).KV("env-vars", prf.Env)
+// 			}
+// 			return nil
+// 		}
+// 	}
+//
+// 	// stdoutR, stdoutW := io.Pipe()
+// 	// stderrR, stderrW := io.Pipe()
+//
+// 	// wg := sync.WaitGroup{}
+//
+// 	// [snippet source](https://rderik.com/blog/identify-if-output-goes-to-the-terminal-or-is-being-redirected-in-golang/)
+// 	// stdout, _ := os.Stdout.Stat()
+// 	// stderr, _ := os.Stderr.Stat()
+// 	// isTTY := ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
+// 	//
+// 	// if isTTY {
+// 	// 	go func() {
+// 	// 		defer wg.Done()
+// 	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
+// 	// 		processOutput(os.Stdout, stdoutR, &logPrefix)
+// 	//
+// 	// 		stderrPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
+// 	// 		processOutput(os.Stderr, stderrR, &stderrPrefix)
+// 	// 	}()
+// 	// } else {
+// 	// 	wg.Add(1)
+// 	// 	go func() {
+// 	// 		defer wg.Done()
+// 	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
+// 	// 		processOutput(os.Stdout, stdoutR, &logPrefix)
+// 	// 		// if pt.Interactive {
+// 	// 		// 	processOutput(os.Stdout, stdoutR, &logPrefix)
+// 	// 		// 	return
+// 	// 		// }
+// 	// 		// processOutputLineByLine(os.Stdout, stdoutR, &logPrefix)
+// 	// 	}()
+// 	//
+// 	// 	wg.Add(1)
+// 	// 	go func() {
+// 	// 		defer wg.Done()
+// 	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
+// 	// 		processOutput(os.Stderr, stderrR, &logPrefix)
+// 	// 		// if pt.Interactive {
+// 	// 		// 	processOutput(os.Stderr, stderrR, &logPrefix)
+// 	// 		// 	return
+// 	// 		// }
+// 	// 		// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
+// 	// 	}()
+// 	// }
+//
+// 	if isTTY() {
+// 		borderColor := "#4388cc"
+// 		if !isDarkTheme() {
+// 			borderColor = "#3d5485"
+// 		}
+// 		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+// 		// labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor)).Blink(true)
+//
+// 		if args.DebugEnv {
+// 			fmt.Printf("%s\n", s.Render(padString(fmt.Sprintf("%+v", prf.Env), "DEBUG: env")))
+// 		}
+//
+// 		hlCode := new(bytes.Buffer)
+// 		// choose colorschemes from `https://swapoff.org/chroma/playground/`
+// 		colorscheme := "catppuccin-macchiato"
+// 		if !isDarkTheme() {
+// 			colorscheme = "monokailight"
+// 		}
+// 		// quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
+//
+// 		for i := range command.Commands {
+// 			cmdStr := strings.TrimSpace(command.Commands[i])
+//
+// 			quick.Highlight(hlCode, cmdStr, "bash", "terminal16m", colorscheme)
+// 			// cst := styles.Get("gruvbox")
+// 			// fmt.Println("cst: ", cst.Name, styles.Fallback.Name, styles.Names())
+//
+// 			// fmt.Printf("%s\n", s.Render(args.taskName+" | "+hlCode.String()))
+// 			fmt.Printf("%s\n", s.Render(padString(hlCode.String(), args.taskName)))
+// 		}
+// 	}
+//
+// 	// logger2 := logging.New(logging.Options{
+// 	// 	Prefix:          "[runfile]",
+// 	// 	Writer:          os.Stderr,
+// 	// 	SlogKeyAsPrefix: "task",
+// 	// })
+//
+// 	// ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
+// 	// 	Logger:      logger2,
+// 	// 	Interactive: pt.Interactive,
+// 	// 	Commands: func(c context.Context) []*exec.Cmd {
+// 	// 		commands := make([]*exec.Cmd, 0, len(command.Commands))
+// 	// 		for i := range command.Commands {
+// 	// 			commands = append(commands, CreateCommand(c, CmdArgs{
+// 	// 				Shell:       pt.Shell,
+// 	// 				Env:         fn.ToEnviron(pt.Env),
+// 	// 				Cmd:         command.Commands[i],
+// 	// 				WorkingDir:  pt.WorkingDir,
+// 	// 				interactive: pt.Interactive,
+// 	// 				Stdout:      os.Stdout,
+// 	// 				Stderr:      os.Stderr,
+// 	// 			}))
+// 	// 		}
+// 	// 		return commands
+// 	// 	},
+// 	// })
+// 	//
+// 	// wg.Add(1)
+// 	// go func() {
+// 	// 	defer wg.Done()
+// 	// 	<-ctx.Done()
+// 	// 	ex.Stop()
+// 	// }()
+// 	//
+// 	// if err := ex.Start(); err != nil {
+// 	// 	return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
+// 	// }
+//
+// 	return nil
+// }
+
+// func runTaskCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) error {
+// 	for _, command := range pt.Commands {
+// 		if err := runCommand(ctx, prf, pt, args, command); err != nil {
+// 			return err
+// 		}
+// 	}
+//
+// 	return nil
+// }
 
 func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 	runfilePath := prf.Metadata.RunfilePath
@@ -227,80 +279,74 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 		return errors.WithErr(err)
 	}
 
-	nctx, cf := context.WithCancel(ctx)
-	defer cf()
+	execCommands, err := createCommands(ctx, prf, pt, args)
+	if err != nil {
+		return err
+	}
 
-	var wg sync.WaitGroup
+	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
+		Logger:      logger,
+		Interactive: pt.Interactive,
+		Commands:    execCommands,
+	})
 
 	switch pt.Watch == nil {
 	case true:
 		{
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				runTaskCommands(NewContext(nctx, ctx.Logger), prf, pt, args)
-			}()
+			// var wg sync.WaitGroup
+			// wg.Add(1)
+			// go func() {
+			// 	defer wg.Done()
+			// 	logger.Info("executor routine ...")
+			// 	<-ctx.Done()
+			// 	logger.Info("executor routine stopping ...")
+			// 	ex.Stop()
+			// 	logger.Info("executor routine stopped ...")
+			// }()
+			if err := ex.Start(); err != nil {
+				logger.Error("while running command, got", "err", err)
+				return err
+			}
+			logger.Debug("completed")
 		}
 	case false:
 		{
+			var wg sync.WaitGroup
 			if pt.Watch != nil && (pt.Watch.Enable == nil || *pt.Watch.Enable) {
 				watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
-					Logger:          logger,
-					WatchDirs:       append(task.Watch.Dirs, pt.WorkingDir),
-					WatchExtensions: pt.Watch.Dirs,
-					IgnoreList:      watcher.DefaultIgnoreList,
-					Interactive:     pt.Interactive,
+					Logger:               logger,
+					WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
+					WatchExtensions:      pt.Watch.Extensions,
+					IgnoreList:           watcher.DefaultIgnoreList,
+					Interactive:          pt.Interactive,
+					ShouldLogWatchEvents: false,
 				})
 				if err != nil {
 					return errors.WithErr(err)
 				}
 
+				wg.Add(1)
 				go func() {
+					defer wg.Done()
 					<-ctx.Done()
-					logger.Debug("fwatcher is closing ...")
+					logger.Info("fwatcher is closing ...")
 					watch.Close()
 				}()
 
-				var executors []executor.Executor
+				executors := []executor.Executor{ex}
 
 				if task.Watch.SSE != nil && task.Watch.SSE.Addr != "" {
 					executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: task.Watch.SSE.Addr}))
-				}
-
-				if len(pt.Commands) > 0 {
-					executors = append(executors, executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
-						Logger:      logger,
-						Interactive: pt.Interactive,
-						Commands: func(c context.Context) []*exec.Cmd {
-							cmds := make([]*exec.Cmd, 0, len(pt.Commands))
-
-							for i := range pt.Commands {
-								cmds = append(cmds, CreateCommand(c, CmdArgs{
-									Shell:       pt.Shell,
-									Env:         fn.ToEnviron(pt.Env),
-									Cmd:         pt.Commands[i].Command,
-									WorkingDir:  pt.WorkingDir,
-									interactive: pt.Interactive,
-									Stdout:      os.Stdout,
-									Stderr:      os.Stderr,
-								}))
-							}
-
-							return cmds
-						},
-					}))
 				}
 
 				if err := watch.WatchAndExecute(ctx, executors); err != nil {
 					return err
 				}
 			}
+
+			wg.Wait()
 		}
-
-		return nil
 	}
-
-	wg.Wait()
 
 	return nil
 }

@@ -44,8 +44,8 @@ tasks:
   clean:
     name: clean
     shell: ["python", "-c"]
-    dotenv:
-      - ../.secrets/env
+    # dotenv:
+    #   - ../.secrets/env
     cmd:
       - run: laundry
         # vars:
