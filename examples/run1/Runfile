@@ -14,5 +14,8 @@ tasks:
       - node
 
   printenv:
+    dotenv:
+      - ../../.secrets/env
     cmd:
       - printenv file1_env1
+      - printenv key_id

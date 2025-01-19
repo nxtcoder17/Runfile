@@ -1,6 +1,7 @@
 package types
 
 type Runfile struct {
+	Filepath string
 	Version  string                 `json:"version,omitempty"`
 	Includes map[string]IncludeSpec `json:"includes"`
 	Env      EnvVar                 `json:"env,omitempty"`
@@ -36,11 +37,13 @@ type TaskMetadata struct {
 }
 
 type TaskWatch struct {
-	Enable         *bool    `json:"enable,omitempty"`
-	Dirs           []string `json:"dirs"`
-	OnlySuffixes   []string `json:"onlySuffixes"`
-	IgnoreSuffixes []string `json:"ignoreSuffixes"`
-	ExcludeDirs    []string `json:"excludeDirs"`
+	Enable     *bool    `json:"enable,omitempty"`
+	Dirs       []string `json:"dirs"`
+	Extensions []string `json:"extensions"`
+	SSE        *struct {
+		Addr string `json:"addr"`
+	} `json:"sse,omitempty"`
+	// ExcludeDirs []string `json:"excludeDirs"`
 }
 
 type Task struct {
@@ -72,6 +75,9 @@ type Task struct {
 
 	Interactive bool `json:"interactive,omitempty"`
 
+	// Parallel allows you to run commands
+	Parallel bool `json:"parallel"`
+
 	// List of commands to be executed in given shell (default: sh)
 	// can take multiple forms
 	//   - simple string
@@ -84,21 +90,14 @@ type Task struct {
 type CommandJson struct {
 	Command string `json:"cmd"`
 	Run     string `json:"run"`
-	Env     string `json:"env"`
+
+	Commands []string `json:"cmds,omitempty"`
+	Runs     []string `json:"runs,omitempty"`
+
+	Env string `json:"env"`
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`
-}
 
-type ParsedCommandJson struct {
-	Command string `json:"cmd"`
-	Run     string `json:"run"`
-	Env     string `json:"env"`
-
-	// If is a go template expression, which must evaluate to true, for task to run
-	If *bool `json:"if"`
-}
-
-type ParsedIncludeSpec struct {
-	Runfile *Runfile
+	Parallel bool `json:"parallel"`
 }

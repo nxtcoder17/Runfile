@@ -38,7 +38,13 @@ func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
 
 	dotEnvFiles := make([]string, 0, len(runfile.DotEnv))
 	for i := range runfile.DotEnv {
-		dotEnvFiles = append(dotEnvFiles, fn.Must(filepath.Abs(runfile.DotEnv[i])))
+		de := runfile.DotEnv[i]
+		if !filepath.IsAbs(de) {
+			result := filepath.Join(filepath.Dir(runfile.Filepath), de)
+			// fmt.Println("HERE", "runfilepath", prf.Metadata.RunfilePath, "dotenv", de, "result", result)
+			de = result
+		}
+		dotEnvFiles = append(dotEnvFiles, de)
 	}
 
 	// dotenvVars, err := parseDotEnvFiles(runfile.DotEnv...)
@@ -69,12 +75,15 @@ func parseRunfileFromFile(file string) (*types.ParsedRunfile, error) {
 		return nil, errors.ErrParseRunfile.Wrap(err)
 	}
 
+	runfile.Filepath = fn.Must(filepath.Abs(file))
+
 	prf, err := parseRunfile(&runfile)
 	if err != nil {
 		return nil, err
 	}
 
-	prf.Metadata.RunfilePath = file
+	// prf.Metadata.RunfilePath = file
+	prf.Metadata.RunfilePath = fn.Must(filepath.Abs(file))
 	return prf, nil
 }
 

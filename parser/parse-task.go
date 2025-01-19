@@ -12,6 +12,14 @@ import (
 	"github.com/nxtcoder17/runfile/types"
 )
 
+func isAbsPath(p string) bool {
+	j, err := filepath.Abs(p)
+	if err != nil {
+		panic(err)
+	}
+	return j == p
+}
+
 func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (*types.ParsedTask, error) {
 	workingDir := filepath.Dir(prf.Metadata.RunfilePath)
 	if task.Metadata.RunfilePath != nil {
@@ -24,7 +32,19 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		taskEnv = make(map[string]string)
 	}
 
-	tdotenv, err := parseDotEnvFiles(task.DotEnv...)
+	dotEnvs := make([]string, 0, len(task.DotEnv))
+	for i := range task.DotEnv {
+		de := task.DotEnv[i]
+		if !filepath.IsAbs(de) {
+			result := filepath.Join(filepath.Dir(*task.Metadata.RunfilePath), de)
+			// fmt.Println("HERE", "runfilepath", prf.Metadata.RunfilePath, "dotenv", de, "result", result)
+			de = result
+		}
+
+		dotEnvs = append(dotEnvs, de)
+	}
+
+	tdotenv, err := parseDotEnvFiles(dotEnvs...)
 	if err != nil {
 		return nil, err
 	}
@@ -88,12 +108,26 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		commands = append(commands, *c2)
 	}
 
+	watch := task.Watch
+	if watch != nil {
+		for i := range watch.Dirs {
+			if !isAbsPath(watch.Dirs[i]) {
+				watch.Dirs[i] = filepath.Join(*task.Dir, watch.Dirs[i])
+			}
+		}
+		// for i := range watch.ExcludeDirs {
+		// 	if !isAbsPath(watch.ExcludeDirs[i]) {
+		// 		watch.ExcludeDirs[i] = filepath.Join(*task.Dir, watch.ExcludeDirs[i])
+		// 	}
+		// }
+	}
+
 	return &types.ParsedTask{
 		Shell:       task.Shell,
 		WorkingDir:  *task.Dir,
 		Interactive: task.Interactive,
 		Env:         taskEnv,
 		Commands:    commands,
-		Watch:       task.Watch,
+		Watch:       watch,
 	}, nil
 }

@@ -2,3 +2,4 @@
 bin/
 .secrets/
 Taskfile.yml
+go.work*

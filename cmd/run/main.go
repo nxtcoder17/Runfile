@@ -16,9 +16,6 @@ import (
 	"github.com/nxtcoder17/runfile/logging"
 	"github.com/nxtcoder17/runfile/runner"
 
-	// "github.com/nxtcoder17/runfile/pkg/runfile"
-
-	// "github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/nxtcoder17/runfile/parser"
 	"github.com/urfave/cli/v3"
 )
@@ -195,7 +192,7 @@ func main() {
 			}
 
 			logger := logging.New(logging.Options{
-				ShowCaller:         true,
+				ShowCaller:         false,
 				SlogKeyAsPrefix:    "task",
 				ShowDebugLogs:      debug,
 				SetAsDefaultLogger: true,
@@ -240,7 +237,6 @@ func main() {
 		} else {
 			slog.Error("got", "err", err)
 		}
-		os.Exit(1)
 	}
 }
 

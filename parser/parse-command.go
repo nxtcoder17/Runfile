@@ -16,7 +16,7 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 	switch c := command.(type) {
 	case string:
 		{
-			return &types.ParsedCommandJson{Command: c}, nil
+			return &types.ParsedCommandJson{Commands: []string{c}}, nil
 		}
 	case map[string]any:
 		{
@@ -30,13 +30,30 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 				return nil, ferr(err)
 			}
 
-			if cj.Run == "" && cj.Command == "" {
-				return nil, ferr(fmt.Errorf("key: 'run' or 'cmd', must be specified when setting command in json format"))
+			pcj := types.ParsedCommandJson{
+				Env: cj.Env,
 			}
 
-			var pcj types.ParsedCommandJson
-			pcj.Run = cj.Run
-			pcj.Command = cj.Command
+			switch {
+			case cj.Run != "" || cj.Runs != nil:
+				{
+					pcj.Runs = cj.Runs
+					if cj.Run != "" {
+						pcj.Runs = append(pcj.Runs, cj.Run)
+					}
+				}
+			case cj.Command != "" || cj.Commands != nil:
+				{
+					pcj.Commands = cj.Commands
+					if cj.Command != "" {
+						pcj.Commands = append(pcj.Commands, cj.Command)
+					}
+				}
+			default:
+				{
+					return nil, fmt.Errorf("either 'run' or 'cmd' key, must be specified when setting command in json format")
+				}
+			}
 
 			if _, ok := prf.Tasks[cj.Run]; !ok {
 				return nil, errors.ErrTaskNotFound.Wrap(fmt.Errorf("run target, not found")).KV("command", command, "run-target", cj.Run)

@@ -1,6 +1,10 @@
 version: 0.0.1
 
+dotenv:
+  - ../../.secrets/env
+
 tasks:
   echo:
     cmd:
       - echo "hello from run2"
+      - printenv key_id

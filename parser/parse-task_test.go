@@ -186,7 +186,7 @@ func Test_ParseTask(t *testing.T) {
 
 	tests := []test{
 		{
-			name: "[shell] if not specified, defaults to [sh, -c]",
+			name: "1. [shell] if not specified, defaults to [sh, -c]",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -208,7 +208,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[shell] if specified, must be acknowledged",
+			name: "2. [shell] if specified, must be acknowledged",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -230,7 +230,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[env] key: value",
+			name: "3. [env] key: value",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -260,7 +260,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[env] key: JSON object format",
+			name: "4. [env] key: JSON object format",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -289,7 +289,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[unhappy/env] JSON object format [must throw err, when] sh key does not exist in value",
+			name: "5. [unhappy/env] JSON object format [must throw err, when] sh key does not exist in value",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -307,7 +307,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "[unhappy/env] JSON object format [must throw err, when] sh (key)'s value is not a string",
+			name: "6. [unhappy/env] JSON object format [must throw err, when] sh (key)'s value is not a string",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -325,7 +325,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "[dotenv] loads environment from given file",
+			name: "7. [dotenv] loads environment from given file",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -349,7 +349,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[unhappy/dotenv] throws err, when file does not exist",
+			name: "8. [unhappy/dotenv] throws err, when file does not exist",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -365,7 +365,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "[unhappy/dotenv] throws err, when filepath exists [but] is not a file (might be a directory or something else)",
+			name: "9. [unhappy/dotenv] throws err, when filepath exists [but] is not a file (might be a directory or something else)",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -381,7 +381,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "[working_dir] if not specified, should be current working directory",
+			name: "10. [working_dir] if not specified, should be current working directory",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -401,7 +401,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[working_dir] when specified, must be acknowledged",
+			name: "11. [working_dir] when specified, must be acknowledged",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -422,7 +422,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "[unhappy/working_dir]  must throw err, when directory does not exist",
+			name: "12. [unhappy/working_dir]  must throw err, when directory does not exist",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -436,7 +436,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "[unhappy/working_dir] must throw err, when directory specified is not a directory (might be something else, or a file)",
+			name: "13. [unhappy/working_dir] must throw err, when directory specified is not a directory (might be something else, or a file)",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -450,7 +450,7 @@ func Test_ParseTask(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "[commands] string commands: single line",
+			name: "14. [commands] string commands: single line",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -468,14 +468,18 @@ func Test_ParseTask(t *testing.T) {
 				Shell:      []string{"sh", "-c"},
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
-					{Command: "echo hello"},
+					{
+						Commands: []string{
+							"echo hello",
+						},
+					},
 				},
 			},
 			wantErr: false,
 		},
 
 		{
-			name: "[commands] string commands: multiline",
+			name: "15. [commands] string commands: multiline",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -497,10 +501,12 @@ echo "hi"
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Command: `
+						Commands: []string{
+							`
 echo "hello"
 echo "hi"
 `,
+						},
 					},
 				},
 			},
@@ -508,7 +514,7 @@ echo "hi"
 		},
 
 		{
-			name: "[commands] JSON commands",
+			name: "16. [commands] JSON commands",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -534,14 +540,18 @@ echo "hi"
 				Shell:      []string{"sh", "-c"},
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
-					{Command: "echo i will call hello, now"},
-					{Run: "hello"},
+					{
+						Commands: []string{"echo i will call hello, now"},
+					},
+					{
+						Runs: []string{"hello"},
+					},
 				},
 			},
 			wantErr: false,
 		},
 		{
-			name: "[unhappy/commands] JSON commands [must throw err, when] run target does not exist",
+			name: "17. [unhappy/commands] JSON commands [must throw err, when] run target does not exist",
 			args: args{
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
@@ -561,7 +571,7 @@ echo "hi"
 		},
 
 		{
-			name: "[task] interactive task",
+			name: "18. [task] interactive task",
 			args: args{
 				ctx: nil,
 				rf: &ParsedRunfile{
@@ -589,8 +599,8 @@ echo "hi"
 				WorkingDir:  fn.Must(os.Getwd()),
 				Interactive: true,
 				Commands: []ParsedCommandJson{
-					{Command: "echo i will call hello, now"},
-					{Run: "hello"},
+					{Commands: []string{"echo i will call hello, now"}},
+					{Runs: []string{"hello"}},
 				},
 			},
 			wantErr: false,
