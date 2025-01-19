@@ -10,12 +10,16 @@ type ParsedRunfile struct {
 }
 
 type ParsedTask struct {
-	Shell       []string            `json:"shell"`
-	WorkingDir  string              `json:"workingDir"`
-	Watch       *TaskWatch          `json:"watch,omitempty"`
-	Env         map[string]string   `json:"environ"`
-	Interactive bool                `json:"interactive,omitempty"`
-	Commands    []ParsedCommandJson `json:"commands"`
+	Shell       []string          `json:"shell"`
+	WorkingDir  string            `json:"workingDir"`
+	Watch       *TaskWatch        `json:"watch,omitempty"`
+	Env         map[string]string `json:"environ"`
+	Interactive bool              `json:"interactive,omitempty"`
+
+	// Parallel allows you to run commands or run targets in parallel
+	Parallel bool `json:"parallel"`
+
+	Commands []ParsedCommandJson `json:"commands"`
 }
 
 type ParsedCommandJson struct {
@@ -25,9 +29,6 @@ type ParsedCommandJson struct {
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *bool `json:"if"`
-
-	// Parallel allows you to run commands or run targets in parallel
-	Parallel bool `json:"parallel"`
 }
 
 type ParsedIncludeSpec struct {

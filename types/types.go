@@ -1,6 +1,7 @@
 package types
 
 type Runfile struct {
+	Filepath string
 	Version  string                 `json:"version,omitempty"`
 	Includes map[string]IncludeSpec `json:"includes"`
 	Env      EnvVar                 `json:"env,omitempty"`
@@ -74,6 +75,9 @@ type Task struct {
 
 	Interactive bool `json:"interactive,omitempty"`
 
+	// Parallel allows you to run commands
+	Parallel bool `json:"parallel"`
+
 	// List of commands to be executed in given shell (default: sh)
 	// can take multiple forms
 	//   - simple string
@@ -95,6 +99,5 @@ type CommandJson struct {
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`
 
-	// Parallel allows you to run commands or run targets in parallel
 	Parallel bool `json:"parallel"`
 }

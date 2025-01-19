@@ -32,7 +32,19 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		taskEnv = make(map[string]string)
 	}
 
-	tdotenv, err := parseDotEnvFiles(task.DotEnv...)
+	dotEnvs := make([]string, 0, len(task.DotEnv))
+	for i := range task.DotEnv {
+		de := task.DotEnv[i]
+		if !filepath.IsAbs(de) {
+			result := filepath.Join(filepath.Dir(*task.Metadata.RunfilePath), de)
+			// fmt.Println("HERE", "runfilepath", prf.Metadata.RunfilePath, "dotenv", de, "result", result)
+			de = result
+		}
+
+		dotEnvs = append(dotEnvs, de)
+	}
+
+	tdotenv, err := parseDotEnvFiles(dotEnvs...)
 	if err != nil {
 		return nil, err
 	}

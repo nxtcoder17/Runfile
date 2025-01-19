@@ -31,8 +31,7 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 			}
 
 			pcj := types.ParsedCommandJson{
-				Env:      cj.Env,
-				Parallel: cj.Parallel,
+				Env: cj.Env,
 			}
 
 			switch {
