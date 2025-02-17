@@ -1,17 +1,18 @@
 package runner
 
 import (
-	// "bytes"
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	// "github.com/alecthomas/chroma/v2/quick"
-	// "github.com/charmbracelet/lipgloss"
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fwatcher/pkg/executor"
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
@@ -51,6 +52,35 @@ func isTTY() bool {
 	stdout, _ := os.Stdout.Stat()
 	stderr, _ := os.Stderr.Stat()
 	return ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
+}
+
+func printCommand(writer io.Writer, prefix, lang, cmd string) {
+	if isTTY() {
+		borderColor := "#4388cc"
+		if !isDarkTheme() {
+			borderColor = "#3d5485"
+		}
+		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+		// labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor)).Blink(true)
+
+		hlCode := new(bytes.Buffer)
+		// choose colorschemes from `https://swapoff.org/chroma/playground/`
+		colorscheme := "catppuccin-macchiato"
+		if !isDarkTheme() {
+			colorscheme = "monokailight"
+		}
+		_ = colorscheme
+		// quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
+
+		cmdStr := strings.TrimSpace(cmd)
+
+		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
+		// cst := styles.Get("gruvbox")
+		// fmt.Println("cst: ", cst.Name, styles.Fallback.Name, styles.Names())
+
+		// fmt.Printf("%s\n", s.Render(args.taskName+" | "+hlCode.String()))
+		fmt.Fprintf(writer, "%s\n", s.Render(padString(hlCode.String(), prefix)))
+	}
 }
 
 type CreateCommandGroupArgs struct {
@@ -104,6 +134,15 @@ func createCommandGroups(ctx Context, args CreateCommandGroupArgs) ([]executor.C
 				cg := executor.CommandGroup{Parallel: args.Task.Parallel}
 
 				cg.Commands = append(cg.Commands, func(c context.Context) *exec.Cmd {
+					commandsList := make([]string, 0, len(args.Task.Commands))
+					for _, c := range args.Task.Commands {
+						if c.Command != nil {
+							commandsList = append(commandsList, *c.Command)
+						}
+					}
+
+					printCommand(args.Stdout.WithPrefix(""), strings.Join(args.Trail, "/"), "bash", strings.Join(commandsList, "\n"))
+
 					return CreateCommand(ctx, CmdArgs{
 						Shell:       args.Task.Shell,
 						Env:         fn.ToEnviron(args.Task.Env),

@@ -9,8 +9,7 @@ import (
 )
 
 type LineWriter struct {
-	prefix string
-	w      io.Writer
+	w io.Writer
 }
 
 // Write implements io.Writer.
@@ -40,7 +39,7 @@ func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 		defer s.wg.Done()
 		copyStream(prefix, s.w, pr)
 	}()
-	return &LineWriter{prefix: prefix, w: pw}
+	return &LineWriter{w: pw}
 }
 
 func (s *LogWriter) Wait() {
@@ -52,15 +51,18 @@ func copyStream(prefix string, dest io.Writer, src io.Reader) {
 	for {
 		b, err := r.ReadBytes('\n')
 		if err != nil {
-			fmt.Println("ERR: ", err)
 			if errors.Is(err, io.EOF) {
-				dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))
+				if prefix != "" {
+					dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))
+				}
 				dest.Write(b)
 				return
 			}
 		}
 
-		dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))
+		if prefix != "" {
+			dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))
+		}
 		dest.Write(b)
 	}
 }
