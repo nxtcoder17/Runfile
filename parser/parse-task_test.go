@@ -469,7 +469,7 @@ func Test_ParseTask(t *testing.T) {
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Commands: []string{
+						Command: []string{
 							"echo hello",
 						},
 					},
@@ -501,7 +501,7 @@ echo "hi"
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Commands: []string{
+						Command: []string{
 							`
 echo "hello"
 echo "hi"
@@ -541,10 +541,10 @@ echo "hi"
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Commands: []string{"echo i will call hello, now"},
+						Command: []string{"echo i will call hello, now"},
 					},
 					{
-						Runs: []string{"hello"},
+						Run: []string{"hello"},
 					},
 				},
 			},
@@ -599,8 +599,8 @@ echo "hi"
 				WorkingDir:  fn.Must(os.Getwd()),
 				Interactive: true,
 				Commands: []ParsedCommandJson{
-					{Commands: []string{"echo i will call hello, now"}},
-					{Runs: []string{"hello"}},
+					{Command: []string{"echo i will call hello, now"}},
+					{Run: []string{"hello"}},
 				},
 			},
 			wantErr: false,

@@ -16,7 +16,7 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 	switch c := command.(type) {
 	case string:
 		{
-			return &types.ParsedCommandJson{Commands: []string{c}}, nil
+			return &types.ParsedCommandJson{Command: &c}, nil
 		}
 	case map[string]any:
 		{
@@ -35,19 +35,13 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 			}
 
 			switch {
-			case cj.Run != "" || cj.Runs != nil:
+			case cj.Run != nil:
 				{
-					pcj.Runs = cj.Runs
-					if cj.Run != "" {
-						pcj.Runs = append(pcj.Runs, cj.Run)
-					}
+					pcj.Run = cj.Run
 				}
-			case cj.Command != "" || cj.Commands != nil:
+			case cj.Command != nil:
 				{
-					pcj.Commands = cj.Commands
-					if cj.Command != "" {
-						pcj.Commands = append(pcj.Commands, cj.Command)
-					}
+					pcj.Command = cj.Command
 				}
 			default:
 				{
@@ -55,7 +49,7 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 				}
 			}
 
-			if _, ok := prf.Tasks[cj.Run]; !ok {
+			if _, ok := prf.Tasks[*cj.Run]; !ok {
 				return nil, errors.ErrTaskNotFound.Wrap(fmt.Errorf("run target, not found")).KV("command", command, "run-target", cj.Run)
 			}
 

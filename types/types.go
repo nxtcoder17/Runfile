@@ -37,10 +37,12 @@ type TaskMetadata struct {
 }
 
 type TaskWatch struct {
-	Enable     *bool    `json:"enable,omitempty"`
-	Dirs       []string `json:"dirs"`
-	Extensions []string `json:"extensions"`
-	SSE        *struct {
+	Enable           *bool    `json:"enable,omitempty"`
+	Dirs             []string `json:"dirs"`
+	IgnoreDirs       []string `json:"ignoreDirs"`
+	Extensions       []string `json:"extensions"`
+	IgnoreExtensions []string `json:"ignoreExtensions"`
+	SSE              *struct {
 		Addr string `json:"addr"`
 	} `json:"sse,omitempty"`
 	// ExcludeDirs []string `json:"excludeDirs"`
@@ -88,16 +90,11 @@ type Task struct {
 }
 
 type CommandJson struct {
-	Command string `json:"cmd"`
-	Run     string `json:"run"`
-
-	Commands []string `json:"cmds,omitempty"`
-	Runs     []string `json:"runs,omitempty"`
+	Command *string `json:"cmd"`
+	Run     *string `json:"run"`
 
 	Env string `json:"env"`
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`
-
-	Parallel bool `json:"parallel"`
 }

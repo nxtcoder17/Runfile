@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/errors"
-	"github.com/nxtcoder17/runfile/logging"
 	"github.com/nxtcoder17/runfile/runner"
 
 	"github.com/nxtcoder17/runfile/parser"
@@ -191,11 +191,10 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			logger := logging.New(logging.Options{
-				ShowCaller:         false,
-				SlogKeyAsPrefix:    "task",
-				ShowDebugLogs:      debug,
-				SetAsDefaultLogger: true,
+			logger := log.New(log.Options{
+				ShowCaller:    true,
+				ShowLogLevel:  true,
+				ShowDebugLogs: debug,
 			})
 
 			return runner.Run(runner.NewContext(ctx, logger), rf, runner.RunArgs{
