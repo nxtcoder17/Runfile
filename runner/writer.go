@@ -47,23 +47,11 @@ func (s *LogWriter) Wait() {
 	s.wg.Wait()
 }
 
-func copyBytes(prefix string, src []byte) []byte {
-	dest := make([]byte, 0, len(src))
-	for i := range src {
-		if i == 0 || src[i-1] == '\n' {
-			dest = append(dest, []byte(fmt.Sprintf("[%s] ", prefix))...)
-		}
-		dest = append(dest, src[i])
-	}
-	return dest
-}
-
 func copyStream(prefix string, dest io.Writer, src io.Reader) {
 	r := bufio.NewReader(src)
 	for {
 		b, err := r.ReadBytes('\n')
 		if err != nil {
-			// logger.Info("stdout", "msg", string(msg[:n]), "err", err)
 			fmt.Println("ERR: ", err)
 			if errors.Is(err, io.EOF) {
 				dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))

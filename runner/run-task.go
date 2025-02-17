@@ -4,7 +4,6 @@ import (
 	// "bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -58,229 +57,73 @@ type CreateCommandGroupArgs struct {
 	Runfile *types.ParsedRunfile
 	Task    *types.ParsedTask
 
-	Prefix string
+	Trail []string
 
-	Stdout io.Writer
-	Stderr io.Writer
+	Stdout *LogWriter
+	Stderr *LogWriter
 }
 
-func createCommandGroups(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, stdout *LogWriter, stderr *LogWriter) ([]executor.CommandGroup, error) {
+func createCommandGroups(ctx Context, args CreateCommandGroupArgs) ([]executor.CommandGroup, error) {
 	var cmds []executor.CommandGroup
 
-	for _, cmd := range pt.Commands {
+	for _, cmd := range args.Task.Commands {
 		switch {
 		case cmd.Run != nil:
 			{
-				rt, ok := prf.Tasks[*cmd.Run]
+				rt, ok := args.Runfile.Tasks[*cmd.Run]
 				if !ok {
 					return nil, fmt.Errorf("invalid run target")
 				}
 
-				rtp, err := parser.ParseTask(ctx, prf, rt)
+				rtp, err := parser.ParseTask(ctx, args.Runfile, rt)
 				if err != nil {
-					return nil, errors.WithErr(err).KV("env-vars", prf.Env)
+					return nil, errors.WithErr(err).KV("env-vars", args.Runfile.Env)
 				}
 
-				rtCommands, err := createCommandGroups(ctx, prf, rtp, stdout, stderr)
+				rtCommands, err := createCommandGroups(ctx, CreateCommandGroupArgs{
+					Runfile: args.Runfile,
+					Task:    rtp,
+					Trail:   append(append([]string{}, args.Trail...), rtp.Name),
+					Stdout:  args.Stdout,
+					Stderr:  args.Stderr,
+				})
 				if err != nil {
-					return nil, errors.WithErr(err).KV("env-vars", prf.Env)
+					return nil, errors.WithErr(err).KV("env-vars", args.Runfile.Env)
 				}
 
 				cg := executor.CommandGroup{
 					Groups:   rtCommands,
 					Parallel: rtp.Parallel,
 				}
-				//
-				// logger := ctx.With("run", *cmd.Run)
-				// logger.Info("got", "len(cg.Commands)", len(cg.Commands), "len(cg.Groups)", len(cg.Groups))
+
 				cmds = append(cmds, cg)
-
-				// cmds = append(cmds, rtCommands...)
-
-				// ctx.Debug("HERE", "commands", len(cg.Commands), "run", *cmd.Run)
-				// cg.Parallel = rtp.Parallel
 			}
 
 		case cmd.Command != nil:
 			{
-				cg := executor.CommandGroup{Parallel: pt.Parallel}
+				cg := executor.CommandGroup{Parallel: args.Task.Parallel}
 
 				cg.Commands = append(cg.Commands, func(c context.Context) *exec.Cmd {
 					return CreateCommand(ctx, CmdArgs{
-						Shell:       pt.Shell,
-						Env:         fn.ToEnviron(pt.Env),
+						Shell:       args.Task.Shell,
+						Env:         fn.ToEnviron(args.Task.Env),
 						Cmd:         *cmd.Command,
-						WorkingDir:  pt.WorkingDir,
-						interactive: pt.Interactive,
-						Stdout:      stdout.WithPrefix(pt.Name),
-						Stderr:      stdout.WithPrefix(pt.Name),
+						WorkingDir:  args.Task.WorkingDir,
+						interactive: args.Task.Interactive,
+						Stdout:      args.Stdout.WithPrefix(strings.Join(args.Trail, "/")),
+						Stderr:      args.Stderr.WithPrefix(strings.Join(args.Trail, "/")),
 					})
 				})
 
-				ctx.Debug("HERE", "cmd", *cmd.Command, "parallel", pt.Parallel)
+				ctx.Debug("HERE", "cmd", *cmd.Command, "parallel", args.Task.Parallel)
 
 				cmds = append(cmds, cg)
 			}
 		}
-
-		// cmds = append(cmds, cg)
 	}
 
 	return cmds, nil
 }
-
-// func runCommand(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs, command types.ParsedCommandJson) error {
-// 	ctx.Debug("running command task", "command.run", command.Runs, "parent.task", args.taskName)
-// 	if command.If != nil && !*command.If {
-// 		ctx.Debug("skipping execution for failed `if`", "command", command.Runs)
-// 		return nil
-// 	}
-//
-// 	if command.Runs != nil {
-// 		for _, run := range command.Runs {
-// 			rt, ok := prf.Tasks[run]
-// 			if !ok {
-// 				return fmt.Errorf("invalid run target")
-// 			}
-//
-// 			rtp, err := parser.ParseTask(ctx, prf, rt)
-// 			if err != nil {
-// 				return errors.WithErr(err).KV("env-vars", prf.Env)
-// 			}
-//
-// 			if err := runTaskCommands(ctx, prf, rtp, args); err != nil {
-// 				return errors.WithErr(err).KV("env-vars", prf.Env)
-// 			}
-// 			return nil
-// 		}
-// 	}
-//
-// 	// stdoutR, stdoutW := io.Pipe()
-// 	// stderrR, stderrW := io.Pipe()
-//
-// 	// wg := sync.WaitGroup{}
-//
-// 	// [snippet source](https://rderik.com/blog/identify-if-output-goes-to-the-terminal-or-is-being-redirected-in-golang/)
-// 	// stdout, _ := os.Stdout.Stat()
-// 	// stderr, _ := os.Stderr.Stat()
-// 	// isTTY := ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
-// 	//
-// 	// if isTTY {
-// 	// 	go func() {
-// 	// 		defer wg.Done()
-// 	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-// 	// 		processOutput(os.Stdout, stdoutR, &logPrefix)
-// 	//
-// 	// 		stderrPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
-// 	// 		processOutput(os.Stderr, stderrR, &stderrPrefix)
-// 	// 	}()
-// 	// } else {
-// 	// 	wg.Add(1)
-// 	// 	go func() {
-// 	// 		defer wg.Done()
-// 	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s]", strings.Join(trail, "/"))))
-// 	// 		processOutput(os.Stdout, stdoutR, &logPrefix)
-// 	// 		// if pt.Interactive {
-// 	// 		// 	processOutput(os.Stdout, stdoutR, &logPrefix)
-// 	// 		// 	return
-// 	// 		// }
-// 	// 		// processOutputLineByLine(os.Stdout, stdoutR, &logPrefix)
-// 	// 	}()
-// 	//
-// 	// 	wg.Add(1)
-// 	// 	go func() {
-// 	// 		defer wg.Done()
-// 	// 		logPrefix := fmt.Sprintf("%s ", ctx.theme.TaskPrefixStyle.Render(fmt.Sprintf("[%s/stderr]", strings.Join(trail, "/"))))
-// 	// 		processOutput(os.Stderr, stderrR, &logPrefix)
-// 	// 		// if pt.Interactive {
-// 	// 		// 	processOutput(os.Stderr, stderrR, &logPrefix)
-// 	// 		// 	return
-// 	// 		// }
-// 	// 		// processOutputLineByLine(os.Stderr, stderrR, &logPrefix)
-// 	// 	}()
-// 	// }
-//
-// 	if isTTY() {
-// 		borderColor := "#4388cc"
-// 		if !isDarkTheme() {
-// 			borderColor = "#3d5485"
-// 		}
-// 		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
-// 		// labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(borderColor)).Blink(true)
-//
-// 		if args.DebugEnv {
-// 			fmt.Printf("%s\n", s.Render(padString(fmt.Sprintf("%+v", prf.Env), "DEBUG: env")))
-// 		}
-//
-// 		hlCode := new(bytes.Buffer)
-// 		// choose colorschemes from `https://swapoff.org/chroma/playground/`
-// 		colorscheme := "catppuccin-macchiato"
-// 		if !isDarkTheme() {
-// 			colorscheme = "monokailight"
-// 		}
-// 		// quick.Highlight(hlCode, strings.TrimSpace(command.Command), "bash", "terminal16m", colorscheme)
-//
-// 		for i := range command.Commands {
-// 			cmdStr := strings.TrimSpace(command.Commands[i])
-//
-// 			quick.Highlight(hlCode, cmdStr, "bash", "terminal16m", colorscheme)
-// 			// cst := styles.Get("gruvbox")
-// 			// fmt.Println("cst: ", cst.Name, styles.Fallback.Name, styles.Names())
-//
-// 			// fmt.Printf("%s\n", s.Render(args.taskName+" | "+hlCode.String()))
-// 			fmt.Printf("%s\n", s.Render(padString(hlCode.String(), args.taskName)))
-// 		}
-// 	}
-//
-// 	// logger2 := logging.New(logging.Options{
-// 	// 	Prefix:          "[runfile]",
-// 	// 	Writer:          os.Stderr,
-// 	// 	SlogKeyAsPrefix: "task",
-// 	// })
-//
-// 	// ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
-// 	// 	Logger:      logger2,
-// 	// 	Interactive: pt.Interactive,
-// 	// 	Commands: func(c context.Context) []*exec.Cmd {
-// 	// 		commands := make([]*exec.Cmd, 0, len(command.Commands))
-// 	// 		for i := range command.Commands {
-// 	// 			commands = append(commands, CreateCommand(c, CmdArgs{
-// 	// 				Shell:       pt.Shell,
-// 	// 				Env:         fn.ToEnviron(pt.Env),
-// 	// 				Cmd:         command.Commands[i],
-// 	// 				WorkingDir:  pt.WorkingDir,
-// 	// 				interactive: pt.Interactive,
-// 	// 				Stdout:      os.Stdout,
-// 	// 				Stderr:      os.Stderr,
-// 	// 			}))
-// 	// 		}
-// 	// 		return commands
-// 	// 	},
-// 	// })
-// 	//
-// 	// wg.Add(1)
-// 	// go func() {
-// 	// 	defer wg.Done()
-// 	// 	<-ctx.Done()
-// 	// 	ex.Stop()
-// 	// }()
-// 	//
-// 	// if err := ex.Start(); err != nil {
-// 	// 	return errors.ErrTaskFailed.Wrap(err).KV("task", args.taskName)
-// 	// }
-//
-// 	return nil
-// }
-
-// func runTaskCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) error {
-// 	for _, command := range pt.Commands {
-// 		if err := runCommand(ctx, prf, pt, args, command); err != nil {
-// 			return err
-// 		}
-// 	}
-//
-// 	return nil
-// }
 
 func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 	runfilePath := prf.Metadata.RunfilePath
@@ -309,7 +152,13 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 
 	logStdout := &LogWriter{w: os.Stdout}
 
-	execCommands, err := createCommandGroups(ctx, prf, pt, logStdout, logStdout)
+	execCommands, err := createCommandGroups(ctx, CreateCommandGroupArgs{
+		Runfile: prf,
+		Task:    pt,
+		Trail:   []string{pt.Name},
+		Stdout:  logStdout,
+		Stderr:  logStdout,
+	})
 	if err != nil {
 		return err
 	}
