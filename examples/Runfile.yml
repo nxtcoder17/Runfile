@@ -91,3 +91,36 @@ tasks:
     cmd:
       - echo "writing to stdout" 
       - echo "writing to stderr" 1>&2
+
+  failing:
+    cmd:
+      - echo "hi"
+      - exit 1
+      - echo "hello"
+
+  first:
+    cmd:
+      - sleep 1
+      - echo "from first"
+
+  second:
+    cmd:
+      - echo "from second"
+
+  first-and-second:
+    parallel: true
+    cmd:
+      - run: first
+      - run: second
+
+  first-second-and-cmds:
+    cmd:
+      - run: first-and-second
+      - echo "Hello World"
+
+  first-second-and-cmds:all-parallel:
+    # parallel: true
+    cmd:
+      - run: first-and-second
+      - echo "Hello World"
+

@@ -3,11 +3,13 @@ package runner
 import (
 	"context"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 
+	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/errors"
+	fn "github.com/nxtcoder17/runfile/functions"
 	"github.com/nxtcoder17/runfile/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -63,10 +65,10 @@ type RunArgs struct {
 
 type Context struct {
 	context.Context
-	*slog.Logger
+	log.Logger
 }
 
-func NewContext(ctx context.Context, logger *slog.Logger) Context {
+func NewContext(ctx context.Context, logger log.Logger) Context {
 	return Context{Context: ctx, Logger: logger}
 }
 
@@ -81,8 +83,8 @@ func Run(ctx Context, prf *types.ParsedRunfile, args RunArgs) error {
 
 	attr := func(taskName string) []any {
 		return []any{
-			"runfile", prf.Metadata.RunfilePath,
 			"task", taskName,
+			"runfile", fn.Must(filepath.Rel(fn.Must(os.Getwd()), prf.Metadata.RunfilePath)),
 		}
 	}
 

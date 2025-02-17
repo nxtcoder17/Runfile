@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -52,50 +53,66 @@ func isTTY() bool {
 	return ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
 }
 
-func createCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) ([]func(c context.Context) *exec.Cmd, error) {
-	var cmds []func(c context.Context) *exec.Cmd
+func createCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) ([]executor.CommandGroup, error) {
+	var cmds []executor.CommandGroup
 
 	for _, cmd := range pt.Commands {
 		switch {
-		case len(cmd.Runs) > 0:
+		case cmd.Run != nil:
 			{
-				for _, run := range cmd.Runs {
-					rt, ok := prf.Tasks[run]
-					if !ok {
-						return nil, fmt.Errorf("invalid run target")
-					}
-
-					rtp, err := parser.ParseTask(ctx, prf, rt)
-					if err != nil {
-						return nil, errors.WithErr(err).KV("env-vars", prf.Env)
-					}
-
-					rtExecutors, err := createCommands(ctx, prf, rtp, args)
-					if err != nil {
-						return nil, errors.WithErr(err).KV("env-vars", prf.Env)
-					}
-
-					cmds = append(cmds, rtExecutors...)
+				rt, ok := prf.Tasks[*cmd.Run]
+				if !ok {
+					return nil, fmt.Errorf("invalid run target")
 				}
+
+				rtp, err := parser.ParseTask(ctx, prf, rt)
+				if err != nil {
+					return nil, errors.WithErr(err).KV("env-vars", prf.Env)
+				}
+
+				rtCommands, err := createCommands(ctx, prf, rtp, args)
+				if err != nil {
+					return nil, errors.WithErr(err).KV("env-vars", prf.Env)
+				}
+
+				cg := executor.CommandGroup{
+					Groups:   rtCommands,
+					Parallel: rtp.Parallel,
+				}
+				//
+				// logger := ctx.With("run", *cmd.Run)
+				// logger.Info("got", "len(cg.Commands)", len(cg.Commands), "len(cg.Groups)", len(cg.Groups))
+				cmds = append(cmds, cg)
+
+				// cmds = append(cmds, rtCommands...)
+
+				// ctx.Debug("HERE", "commands", len(cg.Commands), "run", *cmd.Run)
+				// cg.Parallel = rtp.Parallel
 			}
 
-		case len(cmd.Commands) > 0:
+		case cmd.Command != nil:
 			{
-				for i := range cmd.Commands {
-					cmds = append(cmds, func(c context.Context) *exec.Cmd {
-						return CreateCommand(ctx, CmdArgs{
-							Shell:       pt.Shell,
-							Env:         fn.ToEnviron(pt.Env),
-							Cmd:         cmd.Commands[i],
-							WorkingDir:  pt.WorkingDir,
-							interactive: pt.Interactive,
-							Stdout:      os.Stdout,
-							Stderr:      os.Stderr,
-						})
+				cg := executor.CommandGroup{Parallel: pt.Parallel}
+
+				cg.Commands = append(cg.Commands, func(c context.Context) *exec.Cmd {
+					return CreateCommand(ctx, CmdArgs{
+						Shell:       pt.Shell,
+						Env:         fn.ToEnviron(pt.Env),
+						Cmd:         *cmd.Command,
+						WorkingDir:  pt.WorkingDir,
+						interactive: pt.Interactive,
+						Stdout:      os.Stdout,
+						Stderr:      os.Stderr,
 					})
-				}
+				})
+
+				ctx.Debug("HERE", "cmd", *cmd.Command, "parallel", pt.Parallel)
+
+				cmds = append(cmds, cg)
 			}
 		}
+
+		// cmds = append(cmds, cg)
 	}
 
 	return cmds, nil
@@ -264,7 +281,7 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 
 	args.taskTrail = append(args.taskTrail, args.taskName)
 
-	logger := ctx.With("task", args.taskName, "runfile", runfilePath)
+	logger := ctx.With("task", args.taskName, "runfile", fn.Must(filepath.Rel(fn.Must(os.Getwd()), runfilePath)))
 	logger.Debug("running task")
 
 	task, ok := prf.Tasks[args.taskName]
@@ -284,27 +301,24 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 		return err
 	}
 
+	ctx.Debug("top level command groups", "len", len(execCommands))
+
+	for i := range execCommands {
+		ctx.Debug("debugging execCommands", "i", execCommands[i].Parallel)
+	}
+
 	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
 		Logger:      logger,
 		Interactive: pt.Interactive,
 		Commands:    execCommands,
+		Parallel:    pt.Parallel,
 	})
 
 	switch pt.Watch == nil {
 	case true:
 		{
-			// var wg sync.WaitGroup
-			// wg.Add(1)
-			// go func() {
-			// 	defer wg.Done()
-			// 	logger.Info("executor routine ...")
-			// 	<-ctx.Done()
-			// 	logger.Info("executor routine stopping ...")
-			// 	ex.Stop()
-			// 	logger.Info("executor routine stopped ...")
-			// }()
 			if err := ex.Start(); err != nil {
-				logger.Error("while running command, got", "err", err)
+				logger.Error(err, "while running command")
 				return err
 			}
 			logger.Debug("completed")
@@ -316,7 +330,9 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 				watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
 					Logger:               logger,
 					WatchDirs:            append(task.Watch.Dirs, pt.WorkingDir),
+					IgnoreDirs:           task.Watch.IgnoreDirs,
 					WatchExtensions:      pt.Watch.Extensions,
+					IgnoreExtensions:     pt.Watch.IgnoreExtensions,
 					IgnoreList:           watcher.DefaultIgnoreList,
 					Interactive:          pt.Interactive,
 					ShouldLogWatchEvents: false,

@@ -23,7 +23,7 @@
             pre-commit
 
             # programming tools
-            go_1_22
+            go_1_24
 
             upx
 

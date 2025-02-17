@@ -129,5 +129,6 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		Env:         taskEnv,
 		Commands:    commands,
 		Watch:       watch,
+		Parallel: task.Parallel,
 	}, nil
 }
