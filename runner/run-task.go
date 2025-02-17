@@ -4,6 +4,7 @@ import (
 	// "bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -53,7 +54,17 @@ func isTTY() bool {
 	return ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
 }
 
-func createCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, args runTaskArgs) ([]executor.CommandGroup, error) {
+type CreateCommandGroupArgs struct {
+	Runfile *types.ParsedRunfile
+	Task    *types.ParsedTask
+
+	Prefix string
+
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+func createCommandGroups(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask, stdout *LogWriter, stderr *LogWriter) ([]executor.CommandGroup, error) {
 	var cmds []executor.CommandGroup
 
 	for _, cmd := range pt.Commands {
@@ -70,7 +81,7 @@ func createCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask,
 					return nil, errors.WithErr(err).KV("env-vars", prf.Env)
 				}
 
-				rtCommands, err := createCommands(ctx, prf, rtp, args)
+				rtCommands, err := createCommandGroups(ctx, prf, rtp, stdout, stderr)
 				if err != nil {
 					return nil, errors.WithErr(err).KV("env-vars", prf.Env)
 				}
@@ -101,8 +112,8 @@ func createCommands(ctx Context, prf *types.ParsedRunfile, pt *types.ParsedTask,
 						Cmd:         *cmd.Command,
 						WorkingDir:  pt.WorkingDir,
 						interactive: pt.Interactive,
-						Stdout:      os.Stdout,
-						Stderr:      os.Stderr,
+						Stdout:      stdout.WithPrefix(pt.Name),
+						Stderr:      stdout.WithPrefix(pt.Name),
 					})
 				})
 
@@ -296,7 +307,9 @@ func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 		return errors.WithErr(err)
 	}
 
-	execCommands, err := createCommands(ctx, prf, pt, args)
+	logStdout := &LogWriter{w: os.Stdout}
+
+	execCommands, err := createCommandGroups(ctx, prf, pt, logStdout, logStdout)
 	if err != nil {
 		return err
 	}

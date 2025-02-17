@@ -24,7 +24,7 @@ func TestCreateCommands(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		cg, err := createCommands(Context{Context: context.TODO(), Logger: slog.Default()}, &tt.prf, &tt.pt, tt.rta)
+		cg, err := createCommandGroups(Context{Context: context.TODO(), Logger: slog.Default()}, &tt.prf, &tt.pt, tt.rta)
 		if err != nil {
 			t.Error(err)
 		}

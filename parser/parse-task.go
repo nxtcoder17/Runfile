@@ -123,12 +123,13 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 	}
 
 	return &types.ParsedTask{
+		Name:        task.Name,
 		Shell:       task.Shell,
 		WorkingDir:  *task.Dir,
 		Interactive: task.Interactive,
 		Env:         taskEnv,
 		Commands:    commands,
 		Watch:       watch,
-		Parallel: task.Parallel,
+		Parallel:    task.Parallel,
 	}, nil
 }
