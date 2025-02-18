@@ -18,7 +18,10 @@ func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
 		Tasks: make(map[string]types.Task),
 	}
 
-	prf.Tasks = runfile.Tasks
+	for k, task := range runfile.Tasks {
+		task.Name = k
+		prf.Tasks[k] = task
+	}
 
 	m, err := parseIncludes(runfile.Includes)
 	if err != nil {
@@ -27,6 +30,7 @@ func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
 
 	for k, iprf := range m {
 		for taskName, task := range iprf.Tasks {
+			task.Name = k
 			task.Metadata.RunfilePath = &iprf.Metadata.RunfilePath
 			prf.Tasks[fmt.Sprintf("%s:%s", k, taskName)] = task
 		}
