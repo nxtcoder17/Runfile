@@ -1,21 +1,48 @@
 package runner
 
 import (
-	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"sync"
 )
 
-type LineWriter struct {
-	w io.Writer
+const (
+	StyleReset   = "\033[0m"
+	StyleBold    = "\033[1m"
+	StyleFgGreen = "\033[32m"
+)
+
+type PrefixedWriter struct {
+	w      io.Writer
+	prefix []byte
+	buf    *bytes.Buffer
 }
 
-// Write implements io.Writer.
-func (lw *LineWriter) Write(p []byte) (n int, err error) {
-	return lw.w.Write(p)
+func (pw *PrefixedWriter) Write(p []byte) (int, error) {
+	defer pw.buf.Reset()
+	n, err := pw.buf.Write(p)
+	if err != nil {
+		return n, err
+	}
+
+	for {
+		line, err := pw.buf.ReadBytes('\n')
+		if errors.Is(err, io.EOF) {
+			pw.buf.Reset()
+			pw.buf.Write(line)
+			break
+		}
+
+		if _, err := pw.w.Write(append(pw.prefix, line...)); err != nil {
+			return n, err
+		}
+	}
+	return n, nil
 }
+
+var _ io.Writer = (*PrefixedWriter)(nil)
 
 type LogWriter struct {
 	w  io.Writer
@@ -33,47 +60,10 @@ func (s *LogWriter) Write(p []byte) (n int, err error) {
 var _ io.Writer = (*LogWriter)(nil)
 
 func (s *LogWriter) WithPrefix(prefix string) io.Writer {
-	pr, pw := io.Pipe()
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		copyStreamLineByLine(prefix, s.w, pr)
-	}()
-	return &LineWriter{w: pw}
-}
-
-func (s *LogWriter) Wait() {
-	s.wg.Wait()
-}
-
-const (
-	Reset = "\033[0m"
-	Bold  = "\033[1m"
-	Green = "\033[32m"
-)
-
-func copyStreamLineByLine(prefix string, dest io.Writer, src io.Reader) {
-	hasPrefix := prefix != ""
-	if hasPrefix && hasANSISupport() {
-		prefix = fmt.Sprintf("%s[%s]%s ", Green, prefix, Reset)
+	if prefix != "" && hasANSISupport() {
+		prefix = fmt.Sprintf("%s[%s]%s ", StyleFgGreen, prefix, StyleReset)
 		// prefix = fmt.Sprintf("%s%s |%s ", Green, prefix, Reset)
 	}
-	r := bufio.NewReader(src)
-	for {
-		b, err := r.ReadBytes('\n')
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				if hasPrefix {
-					dest.Write([]byte(prefix))
-				}
-				dest.Write(b)
-				return
-			}
-		}
 
-		if hasPrefix {
-			dest.Write([]byte(prefix))
-		}
-		dest.Write(b)
-	}
+	return &PrefixedWriter{s.w, []byte(prefix), bytes.NewBuffer(nil)}
 }
