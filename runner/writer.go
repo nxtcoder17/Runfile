@@ -37,7 +37,7 @@ func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		copyStream(prefix, s.w, pr)
+		copyStreamLineByLine(prefix, s.w, pr)
 	}()
 	return &LineWriter{w: pw}
 }
@@ -46,22 +46,33 @@ func (s *LogWriter) Wait() {
 	s.wg.Wait()
 }
 
-func copyStream(prefix string, dest io.Writer, src io.Reader) {
+const (
+	Reset = "\033[0m"
+	Bold  = "\033[1m"
+	Green = "\033[32m"
+)
+
+func copyStreamLineByLine(prefix string, dest io.Writer, src io.Reader) {
+	hasPrefix := prefix != ""
+	if hasPrefix && hasANSISupport() {
+		prefix = fmt.Sprintf("%s[%s]%s ", Green, prefix, Reset)
+		// prefix = fmt.Sprintf("%s%s |%s ", Green, prefix, Reset)
+	}
 	r := bufio.NewReader(src)
 	for {
 		b, err := r.ReadBytes('\n')
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				if prefix != "" {
-					dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))
+				if hasPrefix {
+					dest.Write([]byte(prefix))
 				}
 				dest.Write(b)
 				return
 			}
 		}
 
-		if prefix != "" {
-			dest.Write([]byte(fmt.Sprintf("[%s] ", prefix)))
+		if hasPrefix {
+			dest.Write([]byte(prefix))
 		}
 		dest.Write(b)
 	}
