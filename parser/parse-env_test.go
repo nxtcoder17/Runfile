@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/nxtcoder17/go.pkgs/log"
 	. "github.com/nxtcoder17/runfile/types"
 )
 
@@ -111,7 +112,7 @@ func Test_ParseEnvVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseEnvVars(context.TODO(), tt.args.envVars, evaluationParams{
+			got, err := parseEnvVars(Context{Context: context.TODO(), Logger: log.New(), TaskName: "test"}, tt.args.envVars, evaluationParams{
 				Env: tt.args.testingEnv,
 			})
 			if (err != nil) != tt.wantErr {

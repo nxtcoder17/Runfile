@@ -5,8 +5,8 @@ tasks:
   echo:
     cmd:
       - echo "hello from run1"
-      - if: gt 1 0
-        cmd: echo "hello after condition check"
+      # - if: gt 1 0
+      - echo "hello after condition check"
 
   node:shell:
     interactive: true

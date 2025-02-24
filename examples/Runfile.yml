@@ -66,7 +66,8 @@ tasks:
       k4:
         default:
           sh: |+
-           console.log('1234' == '23344')
+            echo "1234"
+            # console.log('1234' == '23344')
     cmd: 
       - run: cook
       - console.log(process.env.k4)

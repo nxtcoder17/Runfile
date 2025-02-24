@@ -6,13 +6,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/errors"
 	fn "github.com/nxtcoder17/runfile/functions"
 	"github.com/nxtcoder17/runfile/types"
 	"sigs.k8s.io/yaml"
 )
 
-func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
+func parseRunfile(ctx types.Context, runfile *types.Runfile) (*types.ParsedRunfile, error) {
 	prf := &types.ParsedRunfile{
 		Env:   make(map[string]string),
 		Tasks: make(map[string]types.Task),
@@ -23,7 +24,7 @@ func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
 		prf.Tasks[k] = task
 	}
 
-	m, err := parseIncludes(runfile.Includes)
+	m, err := parseIncludes(ctx, runfile.Includes)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
 		return nil, err
 	}
 
-	envVars, err := parseEnvVars(context.TODO(), runfile.Env, evaluationParams{Env: dotenvVars})
+	envVars, err := parseEnvVars(types.Context{Context: context.TODO(), Logger: log.New()}, runfile.Env, evaluationParams{Env: dotenvVars})
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func parseRunfile(runfile *types.Runfile) (*types.ParsedRunfile, error) {
 	return prf, nil
 }
 
-func parseRunfileFromFile(file string) (*types.ParsedRunfile, error) {
+func parseRunfileFromFile(ctx types.Context, file string) (*types.ParsedRunfile, error) {
 	var runfile types.Runfile
 
 	f, err := os.ReadFile(file)
@@ -81,7 +82,7 @@ func parseRunfileFromFile(file string) (*types.ParsedRunfile, error) {
 
 	runfile.Filepath = fn.Must(filepath.Abs(file))
 
-	prf, err := parseRunfile(&runfile)
+	prf, err := parseRunfile(ctx, &runfile)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +92,6 @@ func parseRunfileFromFile(file string) (*types.ParsedRunfile, error) {
 	return prf, nil
 }
 
-func ParseRunfile(file string) (*types.ParsedRunfile, error) {
-	return parseRunfileFromFile(file)
+func ParseRunfile(ctx types.Context, file string) (*types.ParsedRunfile, error) {
+	return parseRunfileFromFile(ctx, file)
 }

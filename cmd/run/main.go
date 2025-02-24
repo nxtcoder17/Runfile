@@ -15,6 +15,7 @@ import (
 	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/errors"
 	"github.com/nxtcoder17/runfile/runner"
+	"github.com/nxtcoder17/runfile/types"
 
 	"github.com/nxtcoder17/runfile/parser"
 	"github.com/urfave/cli/v3"
@@ -68,6 +69,14 @@ func main() {
 			&cli.BoolFlag{
 				Name:  "debug",
 				Value: false,
+				Action: func(ctx context.Context, c *cli.Command, b bool) error {
+					v := "false"
+					if b {
+						v = "true"
+					}
+					os.Setenv("RUNFILE_DEBUG", v)
+					return nil
+				},
 			},
 
 			&cli.BoolFlag{
@@ -146,18 +155,6 @@ func main() {
 				return nil
 			}
 
-			runfilePath, err := locateRunfile(c)
-			if err != nil {
-				slog.Error("locating runfile, got", "err", err)
-				return err
-			}
-
-			rf, err2 := parser.ParseRunfile(runfilePath)
-			if err2 != nil {
-				slog.Error("parsing runfile, got", "err", err2)
-				panic(err2)
-			}
-
 			kv := make(map[string]string)
 
 			// INFO: for supporting flags that have been suffixed post arguments
@@ -197,21 +194,40 @@ func main() {
 				ShowDebugLogs: debug,
 			})
 
-			return runner.Run(runner.NewContext(ctx, logger), rf, runner.RunArgs{
+			runfilePath, err := locateRunfile(c)
+			if err != nil {
+				slog.Error("locating runfile, got", "err", err)
+				return err
+			}
+
+			rf, err2 := parser.ParseRunfile(types.NewContext(ctx, logger), runfilePath)
+			if err2 != nil {
+				slog.Error("parsing runfile, got", "err", err2)
+				panic(err2)
+			}
+
+			if err := runner.Run(types.NewContext(ctx, logger), rf, runner.RunArgs{
 				Tasks:             args,
 				ExecuteInParallel: parallel,
 				Watch:             watch,
 				Debug:             debug,
 				KVs:               kv,
-			})
+			}); err != nil {
+				errm, ok := err.(*errors.Error)
+				slog.Debug("got", "err", err)
+				if ok {
+					if errm != nil {
+						// errm.Error()
+						// TODO: change it to a better logging
+						// slog.Error("got", "err", errm)
+						errm.Log()
+					}
+				} else {
+					slog.Error("got", "err", err)
+				}
+			}
 
-			// return rf.Run(runfile.NewContext(ctx, logger), runfile.RunArgs{
-			// 	Tasks:             args,
-			// 	ExecuteInParallel: parallel,
-			// 	Watch:             watch,
-			// 	Debug:             debug,
-			// 	KVs:               kv,
-			// })
+			return nil
 		},
 	}
 
@@ -224,18 +240,7 @@ func main() {
 	}()
 
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		errm, ok := err.(*errors.Error)
-		slog.Debug("got", "err", err)
-		if ok {
-			if errm != nil {
-				// errm.Error()
-				// TODO: change it to a better logging
-				// slog.Error("got", "err", errm)
-				errm.Log()
-			}
-		} else {
-			slog.Error("got", "err", err)
-		}
+		slog.Error("while running cmd, got", "err", err)
 	}
 }
 

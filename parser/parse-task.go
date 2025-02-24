@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,7 +19,9 @@ func isAbsPath(p string) bool {
 	return j == p
 }
 
-func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (*types.ParsedTask, error) {
+func ParseTask(ctx types.Context, prf *types.ParsedRunfile, task types.Task) (*types.ParsedTask, error) {
+	taskCtx := ctx
+	taskCtx.TaskName = task.Name
 	workingDir := filepath.Dir(prf.Metadata.RunfilePath)
 	if task.Metadata.RunfilePath != nil {
 		workingDir = filepath.Dir(*task.Metadata.RunfilePath)
@@ -53,7 +54,7 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		taskEnv[k] = v
 	}
 
-	tenv, err := parseEnvVars(ctx, task.Env, evaluationParams{
+	tenv, err := parseEnvVars(taskCtx, task.Env, evaluationParams{
 		Env: prf.Env,
 	})
 	if err != nil {
@@ -70,7 +71,7 @@ func ParseTask(ctx context.Context, prf *types.ParsedRunfile, task types.Task) (
 		}
 
 		if requirement.Sh != nil {
-			cmd := exec.CommandContext(ctx, "sh", "-c", *requirement.Sh)
+			cmd := exec.CommandContext(taskCtx, "sh", "-c", *requirement.Sh)
 			cmd.Env = fn.ToEnviron(taskEnv)
 			cmd.Stdout = fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755))
 			cmd.Stderr = fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755))

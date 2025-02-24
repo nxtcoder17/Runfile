@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/errors"
 	fn "github.com/nxtcoder17/runfile/functions"
 	"github.com/nxtcoder17/runfile/types"
@@ -63,16 +62,7 @@ type RunArgs struct {
 	KVs               map[string]string
 }
 
-type Context struct {
-	context.Context
-	log.Logger
-}
-
-func NewContext(ctx context.Context, logger log.Logger) Context {
-	return Context{Context: ctx, Logger: logger}
-}
-
-func Run(ctx Context, prf *types.ParsedRunfile, args RunArgs) error {
+func Run(ctx types.Context, prf *types.ParsedRunfile, args RunArgs) error {
 	// INFO: adding parsed KVs as environments to the specified tasks
 	for k, v := range args.KVs {
 		if prf.Env == nil {
