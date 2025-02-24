@@ -92,7 +92,7 @@ type CreateCommandGroupArgs struct {
 	Stderr *LogWriter
 }
 
-func createCommandGroups(ctx Context, args CreateCommandGroupArgs) ([]executor.CommandGroup, error) {
+func createCommandGroups(ctx types.Context, args CreateCommandGroupArgs) ([]executor.CommandGroup, error) {
 	var cmds []executor.CommandGroup
 
 	for _, cmd := range args.Task.Commands {
@@ -171,7 +171,7 @@ func createCommandGroups(ctx Context, args CreateCommandGroupArgs) ([]executor.C
 	return cmds, nil
 }
 
-func runTask(ctx Context, prf *types.ParsedRunfile, args runTaskArgs) error {
+func runTask(ctx types.Context, prf *types.ParsedRunfile, args runTaskArgs) error {
 	runfilePath := prf.Metadata.RunfilePath
 	task := prf.Tasks[args.taskName]
 

@@ -3,15 +3,10 @@ package runner
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"sync"
-)
 
-const (
-	StyleReset   = "\033[0m"
-	StyleBold    = "\033[1m"
-	StyleFgGreen = "\033[32m"
+	"github.com/nxtcoder17/runfile/types"
 )
 
 type PrefixedWriter struct {
@@ -61,8 +56,7 @@ var _ io.Writer = (*LogWriter)(nil)
 
 func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 	if prefix != "" && hasANSISupport() {
-		prefix = fmt.Sprintf("%s[%s]%s ", StyleFgGreen, prefix, StyleReset)
-		// prefix = fmt.Sprintf("%s%s |%s ", Green, prefix, Reset)
+		prefix = types.GetStyledPrefix(prefix)
 	}
 
 	return &PrefixedWriter{s.w, []byte(prefix), bytes.NewBuffer(nil)}

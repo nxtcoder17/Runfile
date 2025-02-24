@@ -6,21 +6,13 @@ import (
 	"io"
 	"log/slog"
 
+	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/parser"
+	"github.com/nxtcoder17/runfile/types"
 )
 
-func generateShellCompletion(_ context.Context, writer io.Writer, rfpath string) error {
-	// if c.NArg() > 0 {
-	// 	return nil
-	// }
-
-	// runfilePath, err := locateRunfile(c)
-	// if err != nil {
-	// 	slog.Error("locating runfile", "err", err)
-	// 	panic(err)
-	// }
-
-	runfile, err := parser.ParseRunfile(rfpath)
+func generateShellCompletion(ctx context.Context, writer io.Writer, rfpath string) error {
+	runfile, err := parser.ParseRunfile(types.NewContext(ctx, log.New()), rfpath)
 	if err != nil {
 		slog.Error("parsing, got", "err", err)
 		panic(err)
@@ -29,18 +21,6 @@ func generateShellCompletion(_ context.Context, writer io.Writer, rfpath string)
 	for k := range runfile.Tasks {
 		fmt.Fprintf(writer, "%s\n", k)
 	}
-
-	// m, err := runfile.ParseIncludes()
-	// if err != nil {
-	// 	slog.Error("parsing, got", "err", err)
-	// 	panic(err)
-	// }
-
-	// for k, v := range m {
-	// 	for tn := range v.Runfile.Tasks {
-	// 		fmt.Fprintf(writer, "%s:%s\n", k, tn)
-	// 	}
-	// }
 
 	return nil
 }

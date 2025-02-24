@@ -2,10 +2,8 @@ package parser
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -41,10 +39,10 @@ or,
 > key1:
 >   sh: "echo hi"
 */
-func parseEnvVars(ctx context.Context, ev types.EnvVar, params evaluationParams) (map[string]string, error) {
+func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (map[string]string, error) {
 	env := make(map[string]string, len(ev))
 	for k, v := range ev {
-		attr := []any{slog.Group("env", "key", k, "value", v)}
+		attr := []any{"env.key", k, "env.value", v}
 		switch v := v.(type) {
 		case string:
 			env[k] = v
@@ -65,18 +63,20 @@ func parseEnvVars(ctx context.Context, ev types.EnvVar, params evaluationParams)
 			if hasRequired, ok := v["required"]; ok {
 				required, ok := hasRequired.(bool)
 				if !ok {
-					return nil, errors.ErrInvalidEnvVar.Wrap(fmt.Errorf("required field must be a boolean")).KV(attr...)
+					return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(fmt.Errorf("required field must be a boolean")).KV(attr...)
 				}
 
 				if required {
-					return nil, errors.ErrRequiredEnvVar.KV(attr...)
+					return nil, errors.ErrRequiredEnvVar(k).WithCtx(ctx).KV(attr...)
 				}
 			}
 
 			if defaultVal, ok := v["default"]; ok {
 				pDefaults, err := parseEnvVars(ctx, types.EnvVar{k: defaultVal}, params)
 				if err != nil {
-					return nil, errors.ErrInvalidDefaultValue.Wrap(err).KV(attr...)
+					// return nil, errors.ErrInvalidDefaultValue(k, defaultVal).WithCtx(ctx).Wrap(err).KV(attr...)
+					defaultValJson, _ := json.MarshalIndent(defaultVal, "", "  ")
+					return nil, errors.ErrInvalidDefaultValue(k, string(defaultValJson)).WithCtx(ctx).Wrap(err)
 				}
 
 				if dv, ok := pDefaults[k]; ok {
@@ -87,7 +87,7 @@ func parseEnvVars(ctx context.Context, ev types.EnvVar, params evaluationParams)
 
 			b, err := json.Marshal(v)
 			if err != nil {
-				return nil, errors.ErrInvalidEnvVar.Wrap(err).KV(attr...)
+				return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(err).KV(attr...)
 			}
 
 			var specials struct {
@@ -95,25 +95,29 @@ func parseEnvVars(ctx context.Context, ev types.EnvVar, params evaluationParams)
 			}
 
 			if err := json.Unmarshal(b, &specials); err != nil {
-				return nil, errors.ErrInvalidEnvVar.Wrap(err).KV(attr...)
+				return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(err).KV(attr...)
 			}
 
 			switch {
 			case specials.Sh != nil:
 				{
+					*specials.Sh = strings.TrimSpace(*specials.Sh)
 					value := new(bytes.Buffer)
 					cmd := exec.CommandContext(ctx, "sh", "-c", *specials.Sh)
 					cmd.Env = fn.ToEnviron(params.Env)
 					cmd.Stdout = value
+					stderrB := new(bytes.Buffer)
+					cmd.Stderr = stderrB
 					if err := cmd.Run(); err != nil {
-						return nil, errors.ErrEvalEnvVarSh.Wrap(err).KV(attr...)
+						return nil, errors.ErrEvalEnvVarSh.WithCtx(ctx).WrapStr(stderrB.String()).KV()
+						// return nil, errors.ErrEvalEnvVarSh.WithCtx(ctx).KV(attr...)
 					}
 
 					env[k] = strings.TrimSpace(value.String())
 				}
 			default:
 				{
-					return nil, errors.ErrInvalidEnvVar.Wrap(fmt.Errorf("invalid env format")).KV(attr...)
+					return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(fmt.Errorf("invalid env format")).KV(attr...)
 				}
 			}
 
