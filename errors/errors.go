@@ -46,7 +46,10 @@ func (e *Error) resolveTaskName() string {
 
 // Error implements error.
 func (e *Error) Error() string {
-	return e.err.Error()
+	if e.err != nil {
+		return e.err.Error()
+	}
+	return ""
 	// return fmt.Sprintf("%v {%#v}", e.err, e.kv)
 }
 

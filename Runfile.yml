@@ -27,6 +27,8 @@ tasks:
     env:
       pattern:
         default: ""
+      only_failing:
+        default: false
     watch:
       enable: true
       dir:
@@ -35,11 +37,13 @@ tasks:
         - .go
     cmd:
       - |+
-        if [ -z "$pattern" ]; then
-          go test -json ./parser/... | gotestfmt
-        else
-          go test -json ./parser/... -run "$pattern" | gotestfmt
-        fi
+        pattern_args=""
+        [ -n "$pattern" ] && pattern_args="-run '$pattern'"
+
+        testfmt_args=""
+        [ "$only_failing" = "true" ] && testfmt_args="--hide successful-tests"
+
+        go test -json ./parser/... $pattern_args | gotestfmt $testfmt_args
 
   test:only-failing:
     cmd:
