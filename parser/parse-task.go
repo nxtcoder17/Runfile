@@ -102,7 +102,7 @@ func ParseTask(ctx types.Context, prf *types.ParsedRunfile, task types.Task) (*t
 
 	commands := make([]types.ParsedCommandJson, 0, len(task.Commands))
 	for i := range task.Commands {
-		c2, err := parseCommand(prf, task.Commands[i])
+		c2, err := parseCommand(ctx, prf, taskEnv, task.Commands[i])
 		if err != nil {
 			return nil, err
 		}
@@ -116,11 +116,6 @@ func ParseTask(ctx types.Context, prf *types.ParsedRunfile, task types.Task) (*t
 				watch.Dirs[i] = filepath.Join(*task.Dir, watch.Dirs[i])
 			}
 		}
-		// for i := range watch.ExcludeDirs {
-		// 	if !isAbsPath(watch.ExcludeDirs[i]) {
-		// 		watch.ExcludeDirs[i] = filepath.Join(*task.Dir, watch.ExcludeDirs[i])
-		// 	}
-		// }
 	}
 
 	return &types.ParsedTask{

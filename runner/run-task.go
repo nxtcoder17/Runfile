@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,8 +11,8 @@ import (
 	"strings"
 	"sync"
 
-	// "github.com/alecthomas/chroma/v2/quick"
-	// "github.com/charmbracelet/lipgloss"
+	"github.com/alecthomas/chroma/v2/quick"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fwatcher/pkg/executor"
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
@@ -33,8 +34,8 @@ func isDarkTheme() bool {
 	return termenv.NewOutput(os.Stdout).HasDarkBackground()
 }
 
-func padString(v string, padWith string) string {
-	sp := strings.Split(v, "\n")
+func padString(str string, padWith string) string {
+	sp := strings.Split(str, "\n")
 	for i := range sp {
 		if i == 0 {
 			sp[i] = fmt.Sprintf("%s | %s", padWith, sp[i])
@@ -58,29 +59,29 @@ func hasANSISupport() bool {
 	return strings.Contains(term, "xterm") || strings.Contains(term, "screen") || strings.Contains(term, "vt100")
 }
 
-// func printCommand(writer io.Writer, prefix, lang, cmd string) {
-// 	if isTTY() {
-// 		borderColor := "#4388cc"
-// 		if !isDarkTheme() {
-// 			borderColor = "#3d5485"
-// 		}
-// 		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
-//
-// 		hlCode := new(bytes.Buffer)
-// 		// choose colorschemes from `https://swapoff.org/chroma/playground/`
-// 		colorscheme := "catppuccin-macchiato"
-// 		if !isDarkTheme() {
-// 			colorscheme = "monokailight"
-// 		}
-// 		_ = colorscheme
-//
-// 		cmdStr := strings.TrimSpace(cmd)
-//
-// 		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
-//
-// 		fmt.Fprintf(writer, "\r%s%s\n", s.Render(padString(hlCode.String(), prefix)), s.UnsetBorderStyle())
-// 	}
-// }
+func printCommand(writer io.Writer, prefix, lang, cmd string) {
+	if isTTY() {
+		borderColor := "#4388cc"
+		if !isDarkTheme() {
+			borderColor = "#3d5485"
+		}
+		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+
+		hlCode := new(bytes.Buffer)
+		// choose colorschemes from `https://swapoff.org/chroma/playground/`
+		colorscheme := "catppuccin-macchiato"
+		if !isDarkTheme() {
+			colorscheme = "monokailight"
+		}
+		_ = colorscheme
+
+		cmdStr := strings.TrimSpace(cmd)
+
+		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
+
+		fmt.Fprintf(writer, "\r%s%s\n", s.Render(padString(hlCode.String(), prefix)), s.UnsetBorderStyle())
+	}
+}
 
 type CreateCommandGroupArgs struct {
 	Runfile *types.ParsedRunfile
@@ -90,10 +91,12 @@ type CreateCommandGroupArgs struct {
 
 	Stdout *LogWriter
 	Stderr *LogWriter
+
+	EnvOverrides map[string]string
 }
 
 func createCommandGroups(ctx types.Context, args CreateCommandGroupArgs) ([]executor.CommandGroup, error) {
-	var cmds []executor.CommandGroup
+	var groups []executor.CommandGroup
 
 	for _, cmd := range args.Task.Commands {
 		switch {
@@ -110,11 +113,12 @@ func createCommandGroups(ctx types.Context, args CreateCommandGroupArgs) ([]exec
 				}
 
 				rtCommands, err := createCommandGroups(ctx, CreateCommandGroupArgs{
-					Runfile: args.Runfile,
-					Task:    rtp,
-					Trail:   append(append([]string{}, args.Trail...), rtp.Name),
-					Stdout:  args.Stdout,
-					Stderr:  args.Stderr,
+					Runfile:      args.Runfile,
+					Task:         rtp,
+					Trail:        append(append([]string{}, args.Trail...), rtp.Name),
+					Stdout:       args.Stdout,
+					Stderr:       args.Stderr,
+					EnvOverrides: cmd.Env,
 				})
 				if err != nil {
 					return nil, errors.WithErr(err).KV("env-vars", args.Runfile.Env)
@@ -123,52 +127,58 @@ func createCommandGroups(ctx types.Context, args CreateCommandGroupArgs) ([]exec
 				cg := executor.CommandGroup{
 					Groups:   rtCommands,
 					Parallel: rtp.Parallel,
+					PreExecCommand: func(c *exec.Cmd) {
+						str := c.String()
+						sp := strings.SplitN(str, " ", 3)
+						args.Stderr.WithDimmedPrefix(*cmd.Run).Write([]byte(sp[2]))
+					},
 				}
 
-				cmds = append(cmds, cg)
+				groups = append(groups, cg)
 			}
 
 		case cmd.Command != nil:
 			{
 				cg := executor.CommandGroup{Parallel: args.Task.Parallel}
 
-				cg.Commands = append(cg.Commands, func(c context.Context) *exec.Cmd {
-					commandsList := make([]string, 0, len(args.Task.Commands))
-					for _, c := range args.Task.Commands {
-						if c.Command != nil {
-							commandsList = append(commandsList, *c.Command)
-						}
-					}
+				cg.PreExecCommand = func(cmd *exec.Cmd) {
+					str := strings.TrimSpace(cmd.String())
+					sp := strings.SplitN(str, " ", len(args.Task.Shell)+1)
+					printCommand(args.Stderr, args.Task.Name, "bash", sp[2])
+				}
 
-					return CreateCommand(ctx, CmdArgs{
-						Shell:       args.Task.Shell,
-						Env:         fn.ToEnviron(args.Task.Env),
-						Cmd:         *cmd.Command,
-						WorkingDir:  args.Task.WorkingDir,
-						interactive: args.Task.Interactive,
-						Stdout: func() io.Writer {
-							if args.Task.Interactive {
-								return os.Stdout
-							}
-							return args.Stdout.WithPrefix(args.Task.Name)
-						}(),
-						Stderr: func() io.Writer {
-							if args.Task.Interactive {
-								return os.Stderr
-							}
-							return args.Stderr.WithPrefix(args.Task.Name)
-						}(),
+				cg.Commands = append(
+					cg.Commands,
+					func(c context.Context) *exec.Cmd {
+						return CreateCommand(ctx, CmdArgs{
+							Shell:       args.Task.Shell,
+							Env:         fn.ToEnviron(fn.MapMerge(args.Task.Env, args.EnvOverrides)),
+							Cmd:         *cmd.Command,
+							WorkingDir:  args.Task.WorkingDir,
+							interactive: args.Task.Interactive,
+							Stdout: func() io.Writer {
+								if args.Task.Interactive {
+									return os.Stdout
+								}
+								return args.Stdout.WithPrefix(args.Task.Name)
+							}(),
+							Stderr: func() io.Writer {
+								if args.Task.Interactive {
+									return os.Stderr
+								}
+								return args.Stderr.WithPrefix(args.Task.Name)
+							}(),
+						})
 					})
-				})
 
 				ctx.Debug("HERE", "cmd", *cmd.Command, "parallel", args.Task.Parallel)
 
-				cmds = append(cmds, cg)
+				groups = append(groups, cg)
 			}
 		}
 	}
 
-	return cmds, nil
+	return groups, nil
 }
 
 func runTask(ctx types.Context, prf *types.ParsedRunfile, args runTaskArgs) error {

@@ -93,7 +93,7 @@ type CommandJson struct {
 	Command *string `json:"cmd"`
 	Run     *string `json:"run"`
 
-	Env string `json:"env"`
+	Env EnvVar `json:"env"`
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`

@@ -8,7 +8,7 @@ import (
 	"github.com/nxtcoder17/runfile/types"
 )
 
-func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJson, error) {
+func parseCommand(ctx types.Context, prf *types.ParsedRunfile, taskEnv map[string]string, command any) (*types.ParsedCommandJson, error) {
 	ferr := func(err error) error {
 		return errors.ErrTaskInvalidCommand.Wrap(err).KV("command", command)
 	}
@@ -30,14 +30,25 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 				return nil, ferr(err)
 			}
 
+			parsedEnv, err := parseEnvVars(ctx, cj.Env, evaluationParams{
+				Env: taskEnv,
+			})
+			if err != nil {
+				return nil, ferr(err)
+			}
+
 			pcj := types.ParsedCommandJson{
-				Env: cj.Env,
+				Env: parsedEnv,
 			}
 
 			switch {
 			case cj.Run != nil:
 				{
 					pcj.Run = cj.Run
+					if _, ok := prf.Tasks[*cj.Run]; !ok {
+						err := errors.ErrTaskNotFound.Wrap(fmt.Errorf("run target, not found")).KV("command", command, "run-target", cj.Run)
+						return nil, err
+					}
 				}
 			case cj.Command != nil:
 				{
@@ -47,10 +58,6 @@ func parseCommand(prf *types.ParsedRunfile, command any) (*types.ParsedCommandJs
 				{
 					return nil, fmt.Errorf("either 'run' or 'cmd' key, must be specified when setting command in json format")
 				}
-			}
-
-			if _, ok := prf.Tasks[*cj.Run]; !ok {
-				return nil, errors.ErrTaskNotFound.Wrap(fmt.Errorf("run target, not found")).KV("command", command, "run-target", cj.Run)
 			}
 
 			return &pcj, nil

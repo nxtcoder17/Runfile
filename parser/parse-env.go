@@ -102,10 +102,12 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 			case specials.Sh != nil:
 				{
 					*specials.Sh = strings.TrimSpace(*specials.Sh)
-					value := new(bytes.Buffer)
 					cmd := exec.CommandContext(ctx, "sh", "-c", *specials.Sh)
 					cmd.Env = fn.ToEnviron(params.Env)
-					cmd.Stdout = value
+
+					stdoutB := new(bytes.Buffer)
+					cmd.Stdout = stdoutB
+
 					stderrB := new(bytes.Buffer)
 					cmd.Stderr = stderrB
 					if err := cmd.Run(); err != nil {
@@ -113,7 +115,7 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 						// return nil, errors.ErrEvalEnvVarSh.WithCtx(ctx).KV(attr...)
 					}
 
-					env[k] = strings.TrimSpace(value.String())
+					env[k] = strings.TrimSpace(stdoutB.String())
 				}
 			default:
 				{

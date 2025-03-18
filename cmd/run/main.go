@@ -82,7 +82,7 @@ func main() {
 			&cli.BoolFlag{
 				Name:    "list",
 				Value:   false,
-				Aliases: []string{"ls"},
+				Aliases: []string{"l"},
 			},
 
 			&cli.BoolFlag{
@@ -112,13 +112,15 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:    "shell:completion",
+				Usage:   "<bash|zsh|fish|ps>",
 				Suggest: true,
 				Action: func(ctx context.Context, c *cli.Command) error {
-					if c.NArg() != 2 {
+					fmt.Printf("args: (%d)\n", c.NArg())
+					if c.NArg() != 1 {
 						return fmt.Errorf("needs argument one of [bash,zsh,fish,ps]")
 					}
 
-					switch c.Args().Slice()[1] {
+					switch c.Args().First() {
 					case "fish":
 						fmt.Fprint(c.Writer, shellCompletionFISH)
 					case "bash":

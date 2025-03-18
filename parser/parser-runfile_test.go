@@ -2,7 +2,7 @@ package parser
 
 import (
 	"encoding/json"
-	"reflect"
+	"fmt"
 	"testing"
 
 	"github.com/nxtcoder17/runfile/types"
@@ -33,26 +33,29 @@ func Test_parseRunfile(t *testing.T) {
 					Env: map[string]any{
 						"env1": "value1",
 					},
+					Tasks: nil,
 				},
 			},
 			want: &types.ParsedRunfile{
 				Env: map[string]string{
 					"env1": "value1",
 				},
+				Tasks: nil,
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseRunfile(tt.args.runfile)
+			got, err := parseRunfile(types.Context{Context: t.Context()}, tt.args.runfile)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseRunfile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
 				t.Errorf("parseRunfile:\ngot: %s\n\nwant:%s\n", pretty(got), pretty(tt.want))
-				// t.Errorf("parseRunfile() = %v, want %v", got, tt.want)
+				return
 			}
 		})
 	}
