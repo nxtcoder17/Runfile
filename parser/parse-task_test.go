@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 
 	fn "github.com/nxtcoder17/runfile/functions"
+	"github.com/nxtcoder17/runfile/types"
 	. "github.com/nxtcoder17/runfile/types"
 )
 
@@ -20,47 +20,41 @@ func Test_ParseTask(t *testing.T) {
 		taskName string
 	}
 
-	areEqual := func(t *testing.T, got, want *ParsedTask) bool {
-		if want == nil {
-			return false
+	compareParsedTasks := func(t *testing.T, got, want *ParsedTask) {
+		if got == nil && want != nil || got != nil && want == nil {
+			t.Errorf("ParseTask(), \n\tgot = %v\n\twant = %v", got, want)
+			return
 		}
 
 		if strings.Join(got.Shell, ",") != strings.Join(want.Shell, ",") {
-			t.Logf("shell not equal")
-			return false
+			t.Errorf("ParseTask(),\n[shell not equal]\n\tgot = %+v\n\twant = %+v", got.Shell, want.Shell)
+			return
 		}
 
 		if got.Interactive != want.Interactive {
-			t.Logf("interactive not equal")
-			return false
+			t.Errorf("ParseTask(),\n[.interactive not equal]\n\tgot = %+v\n\twant = %+v", got.Interactive, want.Interactive)
+			return
 		}
 
-		if len(got.Env) != len(want.Env) {
-			t.Logf("environments not equal")
-			return false
-		}
-
-		gkeys := fn.MapKeys(got.Env)
-
-		for _, k := range gkeys {
-			v, ok := want.Env[k]
-			if !ok || v != got.Env[k] {
-				t.Logf("environments not equal")
-				return false
-			}
+		if fmt.Sprint(got.Env) != fmt.Sprint(want.Env) {
+			t.Errorf("ParseTask(),\n[.Env not equal]\n\tgot = %+v\n\twant = %+v", got.Env, want.Env)
+			return
 		}
 
 		if got.WorkingDir != want.WorkingDir {
-			t.Logf("working dir not equal")
-			return false
+			t.Errorf("ParseTask(),\n[.WorkingDir not equal]\n\tgot = %+v\n\twant = %+v", got.WorkingDir, want.WorkingDir)
+			return
 		}
 
-		if fmt.Sprintf("%#v", got.Commands) != fmt.Sprintf("%#v", want.Commands) {
-			t.Logf("commands not equal:\n got:\t%#v\nwant:\t%#v", got.Commands, want.Commands)
-			return false
+		if len(got.Commands) != len(want.Commands) {
+			t.Errorf("ParseTask(),\n[len(.Commands) not equal]\n\tgot = %+v\n\twant = %+v", len(got.Commands), len(want.WorkingDir))
+			return
 		}
 
-		return true
+		for i := 0; i < len(got.Commands); i++ {
+			testParseCommandJsonEqual(t, &got.Commands[i], &want.Commands[i])
+			return
+		}
 	}
 
 	// for dotenv test
@@ -266,7 +260,7 @@ func Test_ParseTask(t *testing.T) {
 				rf: &ParsedRunfile{
 					Tasks: map[string]Task{
 						"test": {
-							Env: map[string]any{
+							Env: EnvVar{
 								"hello": map[string]any{
 									"sh": "echo hi",
 								},
@@ -469,9 +463,7 @@ func Test_ParseTask(t *testing.T) {
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Command: []string{
-							"echo hello",
-						},
+						Command: fn.New("echo hello"),
 					},
 				},
 			},
@@ -501,12 +493,10 @@ echo "hi"
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Command: []string{
-							`
+						Command: fn.New(`
 echo "hello"
 echo "hi"
-`,
-						},
+`),
 					},
 				},
 			},
@@ -541,10 +531,10 @@ echo "hi"
 				WorkingDir: fn.Must(os.Getwd()),
 				Commands: []ParsedCommandJson{
 					{
-						Command: []string{"echo i will call hello, now"},
+						Command: fn.New("echo i will call hello, now"),
 					},
 					{
-						Run: []string{"hello"},
+						Run: fn.New("hello"),
 					},
 				},
 			},
@@ -599,8 +589,8 @@ echo "hi"
 				WorkingDir:  fn.Must(os.Getwd()),
 				Interactive: true,
 				Commands: []ParsedCommandJson{
-					{Command: []string{"echo i will call hello, now"}},
-					{Run: []string{"hello"}},
+					{Command: fn.New("echo i will call hello, now")},
+					{Run: fn.New("hello")},
 				},
 			},
 			wantErr: false,
@@ -609,17 +599,17 @@ echo "hi"
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseTask(context.TODO(), tt.args.rf, tt.args.rf.Tasks[tt.args.taskName])
+			got, err := ParseTask(types.Context{Context: t.Context()}, tt.args.rf, tt.args.rf.Tasks[tt.args.taskName])
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ParseTask(), got = %v, error = %v, wantErr %v", got, err, tt.wantErr)
 				return
 			}
 
-			if !reflect.DeepEqual(got, tt.want) {
-				if !areEqual(t, got, tt.want) {
-					t.Errorf("ParseTask():> \n\tgot:\t%v,\n\twant:\t%v", got, tt.want)
-				}
+			if tt.wantErr {
+				return
 			}
+
+			compareParsedTasks(t, got, tt.want)
 		})
 	}
 }
