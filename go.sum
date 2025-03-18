@@ -39,6 +39,8 @@ github.com/muesli/termenv v0.15.2 h1:GohcuySI0QmI3wN8Ok9PtKGkgkFIk7y6Vpb5PvrY+Wo
 github.com/muesli/termenv v0.15.2/go.mod h1:Epx+iuz8sNs7mNKhxzH4fWXGNpZwUaJKRS1noLXviQ8=
 github.com/nxtcoder17/fwatcher v1.2.0 h1:Nn5NQZrd6tnY0aFIUmpHCysLDbIsUYn4oyHaxEaVj60=
 github.com/nxtcoder17/fwatcher v1.2.0/go.mod h1:SMwIdCpyi5fBygrkCX8hIIUeILzgoxJFaDSlhFBOWWQ=
+github.com/nxtcoder17/fwatcher v1.2.2-0.20250318121757-bfc2065fa9f5 h1:6BulIAQBv2FZqUFZcKtFEhc1vMOeOdeMS+S5d874FMY=
+github.com/nxtcoder17/fwatcher v1.2.2-0.20250318121757-bfc2065fa9f5/go.mod h1:SMwIdCpyi5fBygrkCX8hIIUeILzgoxJFaDSlhFBOWWQ=
 github.com/nxtcoder17/go.pkgs v0.0.0-20250216034729-39e2d2cd48da h1:Y6GILHFlrihVfDqDPQ98y2kdUeI0SQc8tnoXh2NbEIA=
 github.com/nxtcoder17/go.pkgs v0.0.0-20250216034729-39e2d2cd48da/go.mod h1:raSGHj5CMHNHZf4fCV9CWpFk0hsb2CSKFZSPd4zW8JM=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
