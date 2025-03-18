@@ -22,10 +22,10 @@ func isAbsPath(p string) bool {
 func ParseTask(ctx types.Context, prf *types.ParsedRunfile, task types.Task) (*types.ParsedTask, error) {
 	taskCtx := ctx
 	taskCtx.TaskName = task.Name
-	workingDir := filepath.Dir(prf.Metadata.RunfilePath)
-	if task.Metadata.RunfilePath != nil {
-		workingDir = filepath.Dir(*task.Metadata.RunfilePath)
+	if task.Metadata.RunfilePath == nil {
+		task.Metadata.RunfilePath = &prf.Metadata.RunfilePath
 	}
+	workingDir := filepath.Dir(*task.Metadata.RunfilePath)
 
 	taskEnv := prf.Env
 
@@ -38,7 +38,6 @@ func ParseTask(ctx types.Context, prf *types.ParsedRunfile, task types.Task) (*t
 		de := task.DotEnv[i]
 		if !filepath.IsAbs(de) {
 			result := filepath.Join(filepath.Dir(*task.Metadata.RunfilePath), de)
-			// fmt.Println("HERE", "runfilepath", prf.Metadata.RunfilePath, "dotenv", de, "result", result)
 			de = result
 		}
 

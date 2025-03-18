@@ -103,8 +103,17 @@ jobs:
 
       - name: running for master branch
         if: startsWith(github.ref, 'refs/heads/master')
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |+
-          echo "IMAGE_TAG=nightly" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+          echo "running for master branch, will delete nightly release, and recreate in case it exists"
+          IMAGE_TAG=nightly
+          echo "IMAGE_TAG=$IMAGE_TAG" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
+          gh release list -R ${{ github.repository }}  | grep -i $IMAGE_TAG
+          exit_code=$?
+          if [ $exit_code -eq 0 ]; then
+            gh release delete $IMAGE_TAG -y --cleanup-tag -R ${{ github.repository }}
+          fi
 
       - name: ensure github release exists
         shell: bash

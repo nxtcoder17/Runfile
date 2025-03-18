@@ -2,11 +2,27 @@
 
 All it does is run some pre-configured tasks for you, like running your applications, tests, building binaries, or some other scripts.
 
-It is inspired by other task runners like Taskfile, Make etc.
+It is inspired by other task runners like [Taskfile](https://taskfile.dev), [Make](https://www.gnu.org/software/make/manual/make.html) etc.
+I decided to build my version of it, accounting the experiences that i want to see in a task runner. 
 
-But source code of those tools are like super big, and complex. So I decided to make a simpler one.
+### Features
 
-## Installation
+- [x] Run tasks (commands)
+- [x] Run tasks with Key-Value environment variables
+- [x] Run tasks with dynamic environment variables (referencing values by shell execution)
+- [x] Run tasks with dotenv files as their environment variables
+- [x] Importing tasks from different working directory (must in a monorepo) [reference](https://taskfile.dev/reference/schema/#task)
+- [x] Running tasks in parallel (e.g. css generation and build in parallel)
+- [x] Running tasks with watch mode (e.g. like hot reload)
+- [x] Requirements prior to running a target (e.g. sanity tests)
+- [x] Environment validations and default value
+
+### Installation
+
+| Tool  | Command                                                   |
+| :---: | :---:                                                     |
+| Go    | `go install github.com/nxtcoder17/runfile/cmd/run@latest` |
+
 
 ```bash
 go install github.com/nxtcoder17/runfile/cmd/run@latest
@@ -18,66 +34,90 @@ go install github.com/nxtcoder17/runfile/cmd/run@latest
 
 Create a `Runfile` in the root of your project, and add tasks to it.
 
-### Features
+### Examples
 
-- [x] Run tasks
-- [x] Run tasks with Key-Value environment variables
-- [x] Run tasks with dynamic environment variables (by shell execution)
-- [x] Run tasks with dotenv files as their environment variables
-- [x] Running tasks in different working directory [reference](https://taskfile.dev/reference/schema/#task)
-- [x] Running tasks in parallel
-- [ ] Running tasks with watch mode
-- [x] Requirements prior to running a target
-- [x] Environment validations and default value
-
-### Example
+1. simple tasks
 
 ```yaml
-version: 0.0.1
-
 tasks:
-  test:
-    env:
-      key1: value1
-      key2: value2
-      key3:
-        sh: echo -n "hello"
-      dotenv:
-        - .secrets/env # load dotenv file
+  example:
     cmd:
-      - echo "value of key1 is '$key1'"
-      - echo "value of key2 is '$key2'"
-      - echo "value of key3 is '$key3'"
-      - echo "value of key4 is '$key4'" # assuming key4 is defined in .secrets/env
+        - echo "example"
 ```
 
-## Updates with example runfile with all the features
+![Output](https://github.com/user-attachments/assets/37e33c94-bd3d-407a-8cbe-e62f6e3e2411)
+
+2. using environment variables
 
 ```yaml
-version: 0.0.1
-
 tasks:
-  test:
+  example:
     env:
-      key1: value1
-      key2: value2
-      key3:
-        sh: echo -n "hello"
-      key4:
+      key: "hello world"
+    cmd:
+      - echo $key
+```
+
+![Output](https://github.com/user-attachments/assets/3a0979e6-53a4-4979-bc93-de6adc36fe74)
+
+3. using dynamic environment variables
+
+```yaml
+tasks:
+  example:
+    env:
+      key: 
+        sh: echo $HOME
+    cmd:
+      - echo $key
+```
+
+![Image](https://github.com/user-attachments/assets/f9ca3ae6-4a49-46e4-a07b-66ba84ba14a3)
+
+4. using dotenv based environment variables
+
+```yaml
+tasks:
+  example:
+    dotenv:
+      - .env
+    cmd:
+      - echo $key
+```
+
+```bash
+# file: .env
+key="my-dotenv-secret"
+```
+
+![Image](https://github.com/user-attachments/assets/941b6a9d-57ae-46f1-a320-e76278d6b1e2)
+
+5. validating required environment variable
+
+```yaml
+tasks:
+  example:
+    env:
+      key:
         required: true
-      dotenv:
-        - .secrets/env # load dotenv file
     cmd:
-      - echo "value of key1 is '$key1'"
-      - echo "value of key2 is '$key2'"
-      - echo "value of key3 is '$key3'"
-      - echo "value of key4 is '$key4'" # assuming key4 is defined in .secrets/env
-  build:
-    dir: cmd/app
-    cmd:
-      - go build -o app
-  run:
-    dir: cmd/app
-    cmd:
-      - go run .
+      - echo $key
 ```
+![Image](https://github.com/user-attachments/assets/b900d81a-0eae-4ef6-ac30-8b50cf4ce292)
+
+6. referencing other tasks
+
+```yaml
+tasks:
+  script1:
+    cmd:
+      - echo "i am script 1 (key=$key)"
+
+  example:
+    cmd:
+      - run: script1
+        env:
+          key: "hello"
+      - echo this is example (key=$key)
+```
+![Image](https://github.com/user-attachments/assets/8e7c2d4b-b9e1-4e0e-9b07-e012adc86d64)
