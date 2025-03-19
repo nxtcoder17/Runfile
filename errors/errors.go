@@ -174,3 +174,5 @@ var (
 
 	ErrTaskInvalidCommand = Err("task invalid command")
 )
+
+var ErrInvalidShellAlias error = Err("invalid shell alias")

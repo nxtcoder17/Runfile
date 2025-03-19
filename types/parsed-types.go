@@ -13,7 +13,7 @@ type ParsedTask struct {
 	// Name should be resolved from key itself
 	Name string `json:"-"`
 
-	Shell       []string          `json:"shell"`
+	Shell       Shell             `json:"shell"`
 	WorkingDir  string            `json:"workingDir"`
 	Watch       *TaskWatch        `json:"watch,omitempty"`
 	Env         map[string]string `json:"environ"`
