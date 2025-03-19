@@ -43,7 +43,8 @@ tasks:
 
   clean:
     name: clean
-    shell: ["python", "-c"]
+    # shell: ["python", "-c"]
+    shell: python
     # dotenv:
     #   - ../.secrets/env
     cmd:

@@ -144,7 +144,12 @@ func createCommandGroups(ctx types.Context, args CreateCommandGroupArgs) ([]exec
 				cg.PreExecCommand = func(cmd *exec.Cmd) {
 					str := strings.TrimSpace(cmd.String())
 					sp := strings.SplitN(str, " ", len(args.Task.Shell)+1)
-					printCommand(args.Stderr, args.Task.Name, "bash", sp[2])
+
+					lang := "bash"
+					if len(args.Task.Shell) > 0 {
+						lang = args.Task.Shell[0]
+					}
+					printCommand(args.Stderr, args.Task.Name, lang, sp[2])
 				}
 
 				cg.Commands = append(

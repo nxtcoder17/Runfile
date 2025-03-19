@@ -61,7 +61,7 @@ type Task struct {
 	   - ["python", "-c"]
 	   - ["node", "-e"]
 	*/
-	Shell []string `json:"shell"`
+	Shell Shell `json:"shell"`
 
 	// load env vars from [.env](https://www.google.com/search?q=sample+dotenv+files&udm=2) files
 	DotEnv []string `json:"dotenv"`
