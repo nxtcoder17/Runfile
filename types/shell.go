@@ -25,23 +25,54 @@ type Shell []string
 
 // UnmarshalJSON implements custom unmarshaling for Shell
 func (s *Shell) UnmarshalJSON(data []byte) error {
-	var single string
-	if err := json.Unmarshal(data, &single); err == nil {
-		// INFO: It means shell provided is a single string i.e. shell alias
-		shell, ok := shellAliasMap[single]
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return fmt.Errorf("invalid shell format: %w", err)
+	}
+
+	switch val := v.(type) {
+	case string:
+		shell, ok := shellAliasMap[val]
 		if !ok {
 			return fmt.Errorf("invalid shell alias")
 		}
 		*s = Shell(shell)
-		return nil
+	case []any:
+		// INFO: json unmarshals array as []any
+		var shells []string
+		for _, item := range val {
+			str, ok := item.(string)
+			if !ok {
+				return fmt.Errorf("invalid shell values, must be an []string")
+			}
+			shells = append(shells, str)
+		}
+		*s = Shell(shells)
+	default:
+		return fmt.Errorf("unexpected JSON type for shell")
 	}
 
-	var multiple []string
-	if err := json.Unmarshal(data, &multiple); err == nil {
-		// If it's a slice, assign it directly
-		*s = Shell(multiple)
-		return nil
-	}
-
-	return fmt.Errorf("invalid shell format")
+	return nil
 }
+
+// func (s *Shell) UnmarshalJSON(data []byte) error {
+// 	var single string
+// 	if err := json.Unmarshal(data, &single); err == nil {
+// 		// INFO: It means shell provided is a single string i.e. shell alias
+// 		shell, ok := shellAliasMap[single]
+// 		if !ok {
+// 			return fmt.Errorf("invalid shell alias")
+// 		}
+// 		*s = Shell(shell)
+// 		return nil
+// 	}
+//
+// 	var multiple []string
+// 	if err := json.Unmarshal(data, &multiple); err == nil {
+// 		// If it's a slice, assign it directly
+// 		*s = Shell(multiple)
+// 		return nil
+// 	}
+//
+// 	return fmt.Errorf("invalid shell format")
+// }
