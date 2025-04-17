@@ -44,7 +44,11 @@ func parseCommand(ctx types.Context, prf *types.ParsedRunfile, taskEnv map[strin
 			switch {
 			case cj.Run != nil:
 				{
+					if ctx.TaskNamespace != "" {
+						*cj.Run = ctx.TaskNamespace + ":" + *cj.Run
+					}
 					pcj.Run = cj.Run
+
 					if _, ok := prf.Tasks[*cj.Run]; !ok {
 						err := errors.ErrTaskNotFound.Wrap(fmt.Errorf("run target, not found")).KV("command", command, "run-target", cj.Run)
 						return nil, err

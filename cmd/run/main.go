@@ -202,13 +202,15 @@ func main() {
 				return err
 			}
 
-			rf, err2 := parser.ParseRunfile(types.NewContext(ctx, logger), runfilePath)
+			runfileCtx := types.NewContext(ctx, logger)
+
+			rf, err2 := parser.ParseRunfile(runfileCtx, runfilePath)
 			if err2 != nil {
 				slog.Error("parsing runfile, got", "err", err2)
 				panic(err2)
 			}
 
-			if err := runner.Run(types.NewContext(ctx, logger), rf, runner.RunArgs{
+			if err := runner.Run(runfileCtx, rf, runner.RunArgs{
 				Tasks:             args,
 				ExecuteInParallel: parallel,
 				Watch:             watch,

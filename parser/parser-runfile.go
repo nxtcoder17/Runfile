@@ -1,12 +1,10 @@
 package parser
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/nxtcoder17/go.pkgs/log"
 	"github.com/nxtcoder17/runfile/errors"
 	fn "github.com/nxtcoder17/runfile/functions"
 	"github.com/nxtcoder17/runfile/types"
@@ -18,25 +16,28 @@ func parseRunfile(ctx types.Context, runfile *types.Runfile) (*types.ParsedRunfi
 		Env:   make(map[string]string),
 		Tasks: make(map[string]types.Task),
 	}
+	prf.Metadata.RunfilePath = runfile.Filepath
 
 	for k, task := range runfile.Tasks {
 		task.Name = k
+		task.Metadata.RunfilePath = &prf.Metadata.RunfilePath
 		prf.Tasks[k] = task
 	}
 
-	m, err := parseIncludes(ctx, runfile.Includes)
+	includes, err := parseIncludes(ctx, runfile.Includes)
 	if err != nil {
 		return nil, err
 	}
 
-	for k, iprf := range m {
-		for taskName, task := range iprf.Tasks {
-			task.Name = k
-			task.Metadata.RunfilePath = &iprf.Metadata.RunfilePath
+	for k, included := range includes {
+		for taskName, task := range included.Tasks {
+			task.Name = taskName
+			task.Metadata.RunfilePath = &included.Metadata.RunfilePath
+			task.Metadata.Namespace = k
 			prf.Tasks[fmt.Sprintf("%s:%s", k, taskName)] = task
 		}
 
-		for k, v := range iprf.Env {
+		for k, v := range included.Env {
 			prf.Env[k] = v
 		}
 	}
@@ -58,7 +59,7 @@ func parseRunfile(ctx types.Context, runfile *types.Runfile) (*types.ParsedRunfi
 		return nil, err
 	}
 
-	envVars, err := parseEnvVars(types.Context{Context: context.TODO(), Logger: log.New()}, runfile.Env, evaluationParams{Env: dotenvVars})
+	envVars, err := parseEnvVars(ctx, runfile.Env, evaluationParams{Env: dotenvVars})
 	if err != nil {
 		return nil, err
 	}
@@ -86,9 +87,6 @@ func parseRunfileFromFile(ctx types.Context, file string) (*types.ParsedRunfile,
 	if err != nil {
 		return nil, err
 	}
-
-	// prf.Metadata.RunfilePath = file
-	prf.Metadata.RunfilePath = fn.Must(filepath.Abs(file))
 	return prf, nil
 }
 

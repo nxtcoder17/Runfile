@@ -187,24 +187,18 @@ func createCommandGroups(ctx types.Context, args CreateCommandGroupArgs) ([]exec
 }
 
 func runTask(ctx types.Context, prf *types.ParsedRunfile, args runTaskArgs) error {
-	runfilePath := prf.Metadata.RunfilePath
 	task := prf.Tasks[args.taskName]
-
-	if task.Metadata.RunfilePath != nil {
-		runfilePath = *task.Metadata.RunfilePath
-	}
-
 	args.taskTrail = append(args.taskTrail, args.taskName)
 
-	logger := ctx.With("task", args.taskName, "runfile", fn.Must(filepath.Rel(fn.Must(os.Getwd()), runfilePath)))
-	logger.Debug("running task")
+	logger := ctx.With("task", args.taskName, "runfile", fn.Must(filepath.Rel(fn.Must(os.Getwd()), *task.Metadata.RunfilePath)), "namespace", task.Metadata.Namespace)
+	logger.Debug("running")
+
+	ctx.TaskNamespace = task.Metadata.Namespace
 
 	task, ok := prf.Tasks[args.taskName]
 	if !ok {
 		return errors.ErrTaskNotFound
 	}
-
-	task.Name = args.taskName
 
 	pt, err := parser.ParseTask(ctx, prf, task)
 	if err != nil {

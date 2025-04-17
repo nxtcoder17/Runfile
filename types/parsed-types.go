@@ -1,15 +1,19 @@
 package types
 
 type ParsedRunfile struct {
-	Env   map[string]string `json:"env,omitempty"`
-	Tasks map[string]Task   `json:"tasks"`
+	Env      map[string]string
+	Includes map[string]Task
+	Tasks    map[string]Task
 
 	Metadata struct {
 		RunfilePath string
-	} `json:"-"`
+	}
 }
 
 type ParsedTask struct {
+	// Namespace for a task is auto set, when it is imported under a name
+	Namespace string `json:"-"`
+
 	// Name should be resolved from key itself
 	Name string `json:"-"`
 
