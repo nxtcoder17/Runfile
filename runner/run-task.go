@@ -56,7 +56,7 @@ func isTTY() bool {
 
 func hasANSISupport() bool {
 	term := os.Getenv("TERM")
-	return strings.Contains(term, "xterm") || strings.Contains(term, "screen") || strings.Contains(term, "vt100")
+	return strings.Contains(term, "xterm") || strings.Contains(term, "screen") || strings.Contains(term, "vt100") || strings.Contains(term, "tmux")
 }
 
 func printCommand(writer io.Writer, prefix, lang, cmd string) {
