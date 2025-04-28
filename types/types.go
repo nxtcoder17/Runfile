@@ -1,7 +1,7 @@
 package types
 
 type Runfile struct {
-	Filepath string
+	Filepath string                 `json:"-"`
 	Version  string                 `json:"version,omitempty"`
 	Includes map[string]IncludeSpec `json:"includes"`
 	Env      EnvVar                 `json:"env,omitempty"`
@@ -51,6 +51,7 @@ type TaskWatch struct {
 type Task struct {
 	Metadata struct {
 		RunfilePath *string
+		Namespace   string
 	}
 
 	Name string `json:"-"`

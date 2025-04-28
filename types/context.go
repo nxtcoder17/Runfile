@@ -9,7 +9,8 @@ import (
 type Context struct {
 	context.Context
 	log.Logger
-	TaskName string
+	TaskName      string
+	TaskNamespace string
 }
 
 func NewContext(ctx context.Context, logger log.Logger) Context {

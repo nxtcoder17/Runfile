@@ -37,8 +37,8 @@ github.com/mattn/go-runewidth v0.0.16 h1:E5ScNMtiwvlvB5paMFdw9p4kSQzbXFikJ5SQO6T
 github.com/mattn/go-runewidth v0.0.16/go.mod h1:Jdepj2loyihRzMpdS35Xk/zdY8IAYHsh153qUoGf23w=
 github.com/muesli/termenv v0.15.2 h1:GohcuySI0QmI3wN8Ok9PtKGkgkFIk7y6Vpb5PvrY+Wo=
 github.com/muesli/termenv v0.15.2/go.mod h1:Epx+iuz8sNs7mNKhxzH4fWXGNpZwUaJKRS1noLXviQ8=
-github.com/nxtcoder17/fwatcher v1.2.0 h1:Nn5NQZrd6tnY0aFIUmpHCysLDbIsUYn4oyHaxEaVj60=
-github.com/nxtcoder17/fwatcher v1.2.0/go.mod h1:SMwIdCpyi5fBygrkCX8hIIUeILzgoxJFaDSlhFBOWWQ=
+github.com/nxtcoder17/fastlog v0.0.0-20250416154215-c6aac24aebcb h1:BHKArf9In3jINU2B3mTLQb75F5PMoJ5fnOlRD7dOq/w=
+github.com/nxtcoder17/fastlog v0.0.0-20250416154215-c6aac24aebcb/go.mod h1:EWaIRNdsxHdqCv53XcNw9H9QMwhEV3LTWfsSQZCiiC4=
 github.com/nxtcoder17/fwatcher v1.2.2-0.20250318121757-bfc2065fa9f5 h1:6BulIAQBv2FZqUFZcKtFEhc1vMOeOdeMS+S5d874FMY=
 github.com/nxtcoder17/fwatcher v1.2.2-0.20250318121757-bfc2065fa9f5/go.mod h1:SMwIdCpyi5fBygrkCX8hIIUeILzgoxJFaDSlhFBOWWQ=
 github.com/nxtcoder17/go.pkgs v0.0.0-20250216034729-39e2d2cd48da h1:Y6GILHFlrihVfDqDPQ98y2kdUeI0SQc8tnoXh2NbEIA=

@@ -118,6 +118,7 @@ func ParseTask(ctx types.Context, prf *types.ParsedRunfile, task types.Task) (*t
 	}
 
 	return &types.ParsedTask{
+		Namespace:   task.Metadata.Namespace,
 		Name:        task.Name,
 		Shell:       task.Shell,
 		WorkingDir:  *task.Dir,
