@@ -20,6 +20,7 @@ import (
 	fn "github.com/nxtcoder17/runfile/functions"
 	"github.com/nxtcoder17/runfile/parser"
 	"github.com/nxtcoder17/runfile/types"
+	"golang.org/x/term"
 )
 
 type runTaskArgs struct {
@@ -32,6 +33,18 @@ type runTaskArgs struct {
 
 func isDarkTheme() bool {
 	return termenv.NewOutput(os.Stdout).HasDarkBackground()
+}
+
+func longestLineLen(str string) int {
+	sp := strings.Split(str, "\n")
+	l := len(sp[0])
+	for i := 1; i < len(sp); i++ {
+		if len(sp[i]) > l {
+			l = len(sp[i])
+		}
+	}
+
+	return l
 }
 
 func padString(str string, padWith string) string {
@@ -65,7 +78,14 @@ func printCommand(writer io.Writer, prefix, lang, cmd string) {
 		if !isDarkTheme() {
 			borderColor = "#3d5485"
 		}
+
 		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
+
+		width := 0
+
+		if term.IsTerminal(0) {
+			width, _, _ = term.GetSize(0)
+		}
 
 		hlCode := new(bytes.Buffer)
 		// choose colorschemes from `https://swapoff.org/chroma/playground/`
@@ -75,10 +95,15 @@ func printCommand(writer io.Writer, prefix, lang, cmd string) {
 		}
 		_ = colorscheme
 
+		longestLen := longestLineLen(cmd) + len(prefix) + 2 // 2 for spaces around prefix
+
 		cmdStr := strings.TrimSpace(cmd)
 
 		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
 
+		if width > 0 && longestLen >= width-2 {
+			s = s.Width(width - 2)
+		}
 		fmt.Fprintf(writer, "\r%s%s\n", s.Render(padString(hlCode.String(), prefix)), s.UnsetBorderStyle())
 	}
 }

@@ -1,3 +1,4 @@
+# vim: set ft=yaml:
 env:
   file1_env1: "value1"
 
@@ -17,5 +18,6 @@ tasks:
     dotenv:
       - ../../.secrets/env
     cmd:
+      - run: echo
       - printenv file1_env1
       - printenv key_id
