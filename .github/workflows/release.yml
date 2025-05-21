@@ -23,37 +23,27 @@ permissions:
 
 jobs:
   build-binary:
-    strategy:
-      fail-fast: true
-      matrix:
-        os: [ubuntu-latest, macos-14, macos-13]
-        arch: [amd64, arm64]
-        include:
-          - os: ubuntu-latest
-            platform: linux
+    # strategy:
+    #   fail-fast: true
+    #   matrix:
+    #     runner: ubuntu-latest
+    #     arch:
+    #       - amd64
+    #       - arm64
+    #     os:
+    #       - linux
+    #       - darwin
+    #       - windows
 
-          - os: macos-13
-            platform: darwin
-
-          - os: macos-14
-            platform: darwin
-        exclude:
-          - os: macos-14
-            arch: amd64
-          - os: macos-13
-            arch: arm64
-
-    name: Building run-${{ matrix.platform }}-${{ matrix.arch }}
-    runs-on: ${{ matrix.os }}
+    name: Building runfile
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: nxtcoder17/actions/setup-cache-go@v1
         with:
-          cache_key: "run-${{ matrix.platform }}-${{ matrix.arch }}"
+          cache_key: "run"
           working_directory: .
-
-      - uses: nxtcoder17/actions/generate-image-tag@v1
 
       - uses: nxtcoder17/actions/setup-nix-cachix@v1
         with:
@@ -62,86 +52,61 @@ jobs:
           cachix_cache_name: ${{ secrets.CACHIX_CACHE_NAME }}
           cachix_auth_token:  ${{ secrets.CACHIX_AUTH_TOKEN }}
 
+      - uses: nxtcoder17/actions/metadata@main
+        id: meta
+
       - name: Build Binary
         shell: bash
         env:
           CGO_ENABLED: 0
         run: |+
-          binary=bin/run-${{ matrix.platform }}-${{ matrix.arch }}
-          go build -o $binary -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
+          arch_list=("amd64" "arm64")
+          os_list=("linux" "darwin")
 
-          if [ "${{ matrix.platform }}" = "linux" ]; then
-            upx $binary
-          fi
+          for os in "${os_list[@]}"; do
+            for arch in "${arch_list[@]}"; do
+              echo "🚧 building binary for os=$os arch=$arch"
+              export GOARCH=$arch
+              export GOOS=$os
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: run-${{ matrix.platform }}-${{ matrix.arch }}
-          path: bin/*
-
-  release:
-    needs: build-binary
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ${{ github.workspace }}/binaries
-          pattern: "run-*"
-
-      - name: flattening all the executable artifacts
-        shell: bash
-        run: |+
-          ls -R ${{ github.workspace }}/binaries
-          mkdir -p  ${{ github.workspace }}/upload/binaries
-          shopt -s globstar
-          file ./** | grep 'executable,' | awk -F: '{print $1}' | xargs -I {} cp {} ${{ github.workspace }}/upload/binaries
-          shopt -u globstar
-
-      - uses: nxtcoder17/actions/generate-image-tag@v1
+              binary=bin/run-$GOOS-$GOARCH
+              go build -o $binary -ldflags="-s -w -X main.Version=${{ steps.meta.outputs.version }}-${{steps.meta.outputs.short_sha}}" -tags urfave_cli_no_docs ./cmd/run
+            done
+          done
 
       - name: running for master branch
-        if: startsWith(github.ref, 'refs/heads/master')
+        if: startsWith(github.ref, 'refs/heads/')
         env:
           GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
         run: |+
-          echo "running for master branch, will delete nightly release, and recreate in case it exists"
-          IMAGE_TAG=nightly
-          echo "IMAGE_TAG=$IMAGE_TAG" | tee -a $GITHUB_ENV | tee -a $GITHUB_OUTPUT
-          gh release list -R ${{ github.repository }}  | grep -i $IMAGE_TAG
-          exit_code=$?
-          if [ $exit_code -eq 0 ]; then
-            gh release delete $IMAGE_TAG -y --cleanup-tag -R ${{ github.repository }}
-          fi
+          echo "running for a branch, will delete it's nightly release"
+          gh release delete ${{steps.meta.outputs.version}} -y --cleanup-tag -R ${{ github.repository }} || echo "cleaned up nightly tag"
 
       - name: ensure github release exists
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
         run: |+
-          set +e
-          gh release list -R ${{ github.repository }}  | grep -i $IMAGE_TAG
-          exit_code=$?
-          if [ $exit_code -ne 0 ]; then
-            gh release create $IMAGE_TAG -R ${{ github.repository }} --generate-notes --prerelease --draft=false
-          fi
+          echo "🔖 creating release for tag $version"
+          gh release create $version -R ${{ github.repository }} --generate-notes --prerelease --draft=false || echo "release ($version) already exists, will use that one"
 
       - name: upload to github release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
         run: |+
-          extra_args=""
-          if [ "$IMAGE_TAG" = "nightly" ]; then
-            extra_args="--clobber"
-          fi
-          gh release upload $IMAGE_TAG -R ${{github.repository}} $extra_args ${{github.workspace}}/upload/binaries/*
+          gh release upload $version -R ${{github.repository}} bin/*
+          echo "🚀 updated binaries to github release"
 
       - name: mark release as latest
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
         shell: bash
         run: |+
-          gh release edit $IMAGE_TAG -R ${{ github.repository }} --latest
+          gh release edit $version -R ${{ github.repository }} --latest
+
