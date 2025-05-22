@@ -70,7 +70,7 @@ jobs:
               export GOOS=$os
 
               binary=bin/run-$GOOS-$GOARCH
-              go build -o $binary -ldflags="-s -w -X main.Version=${{ steps.meta.outputs.version }}-${{steps.meta.outputs.short_sha}}" -tags urfave_cli_no_docs ./cmd/run
+              time go build -o $binary -ldflags="-s -w -X main.Version=${{ steps.meta.outputs.version }}-${{steps.meta.outputs.short_sha}}" -tags urfave_cli_no_docs ./cmd/run
             done
           done
 
