@@ -75,6 +75,11 @@ func Test_parseCommand(t *testing.T) {
 				prf: &types.ParsedRunfile{
 					Tasks: map[string]types.Task{
 						"build": {
+							Env: types.EnvVar{
+								"k1": map[string]any{
+									"required": true,
+								},
+							},
 							Commands: []any{
 								"echo from build",
 							},

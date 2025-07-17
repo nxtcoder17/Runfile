@@ -16,7 +16,7 @@ func parseCommand(ctx types.Context, prf *types.ParsedRunfile, taskEnv map[strin
 	switch c := command.(type) {
 	case string:
 		{
-			return &types.ParsedCommandJson{Command: &c}, nil
+			return &types.ParsedCommandJson{Command: &c, Env: taskEnv}, nil
 		}
 	case map[string]any:
 		{

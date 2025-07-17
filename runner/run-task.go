@@ -91,7 +91,7 @@ func printCommand(writer io.Writer, prefix, lang, cmd string) {
 		// choose colorschemes from `https://swapoff.org/chroma/playground/`
 		colorscheme := "catppuccin-macchiato"
 		if !isDarkTheme() {
-			colorscheme = "monokailight"
+			colorscheme = "xcode"
 		}
 		_ = colorscheme
 
