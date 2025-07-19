@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nxtcoder17/go.pkgs/log"
+	"github.com/nxtcoder17/fastlog"
 	"github.com/nxtcoder17/runfile/errors"
 	"github.com/nxtcoder17/runfile/runner"
 	"github.com/nxtcoder17/runfile/types"
@@ -21,13 +21,7 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-var Version string = fmt.Sprintf("nightly | %s", time.Now().Format(time.RFC3339))
-
-var runfileNames []string = []string{
-	"Runfile",
-	"Runfile.yml",
-	"Runfile.yaml",
-}
+var Version string
 
 //go:embed completions/run.fish
 var shellCompletionFISH string
@@ -42,6 +36,10 @@ var shellCompletionZSH string
 var shellCompletionPS string
 
 func main() {
+	if Version == "" {
+		Version = fmt.Sprintf("nightly | %s", time.Now().Format(time.RFC3339))
+	}
+
 	cmd := cli.Command{
 		Name:        "run",
 		Version:     Version,
@@ -190,9 +188,10 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			logger := log.New(log.Options{
+			logger := fastlog.New(fastlog.Options{
+				EnableColors:  true,
 				ShowCaller:    true,
-				ShowLogLevel:  true,
+				ShowTimestamp: false,
 				ShowDebugLogs: debug,
 			})
 
@@ -259,6 +258,12 @@ func locateRunfile(c *cli.Command) (string, error) {
 		}
 
 		oldDir := ""
+
+		runfileNames := []string{
+			"Runfile",
+			"Runfile.yml",
+			"Runfile.yaml",
+		}
 
 		for oldDir != dir {
 			for _, fn := range runfileNames {
