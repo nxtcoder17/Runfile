@@ -2,7 +2,6 @@ package runfile
 
 import (
 	"github.com/nxtcoder17/runfile/pkg/errors"
-	"github.com/nxtcoder17/runfile/pkg/task"
 	"github.com/nxtcoder17/runfile/pkg/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -14,16 +13,16 @@ type RunOption struct {
 	KVs               map[string]string
 }
 
-func (rf *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) error {
+func (r *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) error {
 	for k, v := range opt.KVs {
-		if rf.Env == nil {
-			rf.Env = make(map[string]string)
+		if r.Env == nil {
+			r.Env = make(map[string]string)
 		}
-		rf.Env[k] = v
+		r.Env[k] = v
 	}
 
 	for _, taskName := range tasks {
-		if _, ok := rf.Tasks[taskName]; !ok {
+		if _, ok := r.Tasks[taskName]; !ok {
 			return errors.ErrTaskNotFound(taskName)
 		}
 	}
@@ -35,8 +34,7 @@ func (rf *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) 
 		for _, _tn := range tasks {
 			name := _tn
 			errg.Go(func() error {
-				t := rf.Tasks[name]
-				if err := t.Run(task.NewContext(ctx)); err != nil {
+				if err := r.RunTask(NewContext(ctx), name); err != nil {
 					return err
 				}
 				return nil
@@ -52,8 +50,7 @@ func (rf *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) 
 	}
 
 	for _, tn := range tasks {
-		t := rf.Tasks[tn]
-		if err := t.Run(task.NewContext(ctx)); err != nil {
+		if err := r.RunTask(NewContext(ctx), tn); err != nil {
 			return err
 		}
 	}

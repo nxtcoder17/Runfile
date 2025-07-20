@@ -1,4 +1,4 @@
-package task
+package runfile
 
 import (
 	"bytes"
@@ -148,32 +148,41 @@ func printCommand(writer io.Writer, prefix, lang, cmd string) {
 	}
 }
 
-func (t *Task) createCommandGroups(ctx *Context, args CreateCommandGroupArgs) ([]executor.CommandGroup, error) {
+func (r *ParsedRunfile) createCommandGroups(ctx *Context, taskName string, args CreateCommandGroupArgs) ([]executor.CommandGroup, error) {
+	task, ok := r.Tasks[taskName]
+	if !ok {
+		return nil, errors.ErrTaskNotFound(taskName)
+	}
+
+	env, err := r.ParseTaskEnv(ctx, taskName, args.Env)
+	if err != nil {
+		return nil, err
+	}
+
 	var groups []executor.CommandGroup
 
-	for i := range t.Commands {
-		cmd, err := parseCommand(ctx, t.Commands[i], args.Env)
+	for i := range task.Commands {
+		cmd, err := parseCommand(ctx, task.Commands[i], env)
 		if err != nil {
 			return nil, err
 		}
 
+		ctx.Debug("debugging", "env", env, "task", taskName, "trail", args.Trail)
+
 		switch {
 		case cmd.Run != nil:
 			{
-				if t.Metadata.Namespace != "" {
-					*cmd.Run = t.Metadata.Namespace + ":" + *cmd.Run
+
+				if task.Metadata.Namespace != "" {
+					*cmd.Run = task.Metadata.Namespace + ":" + *cmd.Run
 				}
-				rt, ok := t.AllTasks[*cmd.Run]
+
+				rt, ok := r.Tasks[*cmd.Run]
 				if !ok {
-					return nil, errors.ErrTaskNotFound(*cmd.Run).KV("all-tasks", fn.MapKeys(t.AllTasks))
+					return nil, errors.ErrTaskNotFound(*cmd.Run).KV("all-tasks", fn.MapKeys(r.Tasks))
 				}
 
-				// rtp, err := parser.ParseTask(ctx, args.Runfile, rt)
-				// if err != nil {
-				// 	return nil, errors.WithErr(err).KV("env-vars", args.Runfile.Env)
-				// }
-
-				rtCommands, err := rt.createCommandGroups(ctx, CreateCommandGroupArgs{
+				rtCommands, err := r.createCommandGroups(ctx, rt.Name, CreateCommandGroupArgs{
 					Trail:  append(args.Trail, rt.Name),
 					Stdout: args.Stdout,
 					Stderr: args.Stderr,
@@ -198,13 +207,18 @@ func (t *Task) createCommandGroups(ctx *Context, args CreateCommandGroupArgs) ([
 
 		case cmd.Command != nil:
 			{
-				shell, err := t.ParseShell()
+				shell, err := r.ParseTaskShell(taskName)
 				if err != nil {
 					return nil, err
 				}
 
+				task, ok := r.Tasks[taskName]
+				if !ok {
+					return nil, errors.ErrTaskNotFound(*cmd.Run).KV("all-tasks", fn.MapKeys(r.Tasks))
+				}
+
 				cg := executor.CommandGroup{
-					Parallel: t.Parallel,
+					Parallel: task.Parallel,
 					PreExecCommand: func(cmd *exec.Cmd) {
 						str := strings.TrimSpace(cmd.String())
 						sp := strings.SplitN(str, " ", len(shell)+1)
@@ -213,28 +227,28 @@ func (t *Task) createCommandGroups(ctx *Context, args CreateCommandGroupArgs) ([
 						if len(shell) > 0 {
 							lang = shell[0]
 						}
-						printCommand(args.Stderr, t.Name, lang, sp[2])
+						printCommand(args.Stderr, task.Name, lang, sp[2])
 					},
 
 					Commands: []func(c context.Context) *exec.Cmd{
 						func(c context.Context) *exec.Cmd {
 							return CreateCommand(ctx, CmdArgs{
 								Shell:       shell,
-								Env:         fn.ToEnviron(args.Env),
+								Env:         fn.ToEnviron(cmd.Env),
 								Cmd:         *cmd.Command,
-								WorkingDir:  t.Dir,
-								interactive: t.Interactive,
+								WorkingDir:  task.Dir,
+								interactive: task.Interactive,
 								Stdout: func() io.Writer {
-									if t.Interactive {
+									if task.Interactive {
 										return os.Stdout
 									}
-									return args.Stdout.WithPrefix(t.Name)
+									return args.Stdout.WithPrefix(task.Name)
 								}(),
 								Stderr: func() io.Writer {
-									if t.Interactive {
+									if task.Interactive {
 										return os.Stderr
 									}
-									return args.Stderr.WithPrefix(t.Name)
+									return args.Stderr.WithPrefix(task.Name)
 								}(),
 							})
 						},
@@ -249,37 +263,34 @@ func (t *Task) createCommandGroups(ctx *Context, args CreateCommandGroupArgs) ([
 	return groups, nil
 }
 
-func (t *Task) Run(ctx *Context) error {
-	ctx.taskTrail = append(ctx.taskTrail, t.Name)
-	ctx.Debug("running", "task", t.Name)
+func (r *ParsedRunfile) RunTask(ctx *Context, name string) error {
+	ctx.taskTrail = append(ctx.taskTrail, name)
+	ctx.Debug("running", "task", name)
 
-	env, err := t.ParseEnv(ctx)
+	logStdout := &writer.LogWriter{Writer: os.Stdout}
+
+	commandGroups, err := r.createCommandGroups(ctx, name, CreateCommandGroupArgs{
+		Trail:  []string{},
+		Stdout: logStdout,
+		Stderr: logStdout,
+	})
 	if err != nil {
 		return err
 	}
 
-	logStdout := &writer.LogWriter{Writer: os.Stdout}
-
-	commandGroups, err := t.createCommandGroups(ctx, CreateCommandGroupArgs{
-		Trail:  []string{t.Name},
-		Stdout: logStdout,
-		Stderr: logStdout,
-		Env:    env,
-	})
-	if err != nil {
-		return err
+	task, ok := r.Tasks[name]
+	if !ok {
+		return errors.ErrTaskNotFound(name)
 	}
 
 	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
 		Logger:      ctx.Logger.Slog(),
-		Interactive: t.Interactive,
+		Interactive: task.Interactive,
 		Commands:    commandGroups,
-		Parallel:    t.Parallel,
+		Parallel:    task.Parallel,
 	})
 
-	ctx.Debug("l.commandGroups", "l", len(commandGroups))
-
-	switch t.Watch == nil {
+	switch task.Watch == nil {
 	case true:
 		{
 			if err := ex.Start(); err != nil {
@@ -291,16 +302,16 @@ func (t *Task) Run(ctx *Context) error {
 	case false:
 		{
 			var wg sync.WaitGroup
-			if t.Watch != nil && (t.Watch.Enable == nil || *t.Watch.Enable) {
+			if task.Watch != nil && (task.Watch.Enable == nil || *task.Watch.Enable) {
 				watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
 					Logger: ctx.Logger.Slog(),
 					// WatchDirs:            append(t.Watch.Dirs, t.Dir),
-					WatchDirs:            t.Watch.Dirs,
-					IgnoreDirs:           t.Watch.IgnoreDirs,
-					WatchExtensions:      t.Watch.Extensions,
-					IgnoreExtensions:     t.Watch.IgnoreExtensions,
+					WatchDirs:            task.Watch.Dirs,
+					IgnoreDirs:           task.Watch.IgnoreDirs,
+					WatchExtensions:      task.Watch.Extensions,
+					IgnoreExtensions:     task.Watch.IgnoreExtensions,
 					IgnoreList:           watcher.DefaultIgnoreList,
-					Interactive:          t.Interactive,
+					Interactive:          task.Interactive,
 					ShouldLogWatchEvents: false,
 				})
 				if err != nil {
@@ -317,8 +328,8 @@ func (t *Task) Run(ctx *Context) error {
 
 				executors := []executor.Executor{ex}
 
-				if t.Watch.SSE != nil && t.Watch.SSE.Addr != "" {
-					executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: t.Watch.SSE.Addr}))
+				if task.Watch.SSE != nil && task.Watch.SSE.Addr != "" {
+					executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: task.Watch.SSE.Addr}))
 				}
 
 				if err := watch.WatchAndExecute(ctx, executors); err != nil {

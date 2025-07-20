@@ -1,8 +1,9 @@
-package task
+package runfile
 
 import (
 	"fmt"
 
+	"github.com/nxtcoder17/runfile/pkg/errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 )
 
@@ -25,12 +26,17 @@ var shellAliasMap = map[string][]string{
 
 var shellAliasKeys = fn.MapKeys(shellAliasMap)
 
-func (t *Task) ParseShell() (Shell, error) {
-	if t.Shell == nil {
-		return Shell{"sh", "-c"}, nil
+func (r *ParsedRunfile) ParseTaskShell(taskName string) (Shell, error) {
+	task, ok := r.Tasks[taskName]
+	if !ok {
+		return nil, errors.ErrTaskNotFound(taskName)
 	}
 
-	switch val := t.Shell.(type) {
+	if task.Shell == nil {
+		return shellAliasMap["sh"], nil
+	}
+
+	switch val := task.Shell.(type) {
 	case string:
 		shell, ok := shellAliasMap[val]
 		if !ok {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/nxtcoder17/runfile/pkg/errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/task"
 	"github.com/nxtcoder17/runfile/pkg/types"
 	"sigs.k8s.io/yaml"
 )
@@ -34,7 +33,7 @@ func ParseFromFile(ctx *types.Context, file string) (*ParsedRunfile, error) {
 		return nil, err
 	}
 
-	tasks := make(map[string]task.Task, len(rf.Tasks))
+	tasks := make(map[string]Task, len(rf.Tasks))
 	for k, v := range rf.Tasks {
 		v.Name = k
 		v.ParentEnv = env
@@ -58,12 +57,12 @@ func (rf *Runfile) resolveEnv(ctx *types.Context) (map[string]string, error) {
 		dotEnvFiles = append(dotEnvFiles, de)
 	}
 
-	dotenvVars, err := task.ParseDotEnvFiles(dotEnvFiles...)
+	dotenvVars, err := ParseDotEnvFiles(dotEnvFiles...)
 	if err != nil {
 		return nil, err
 	}
 
-	envVars, err := task.ParseEnvVars(ctx, rf.Env, dotenvVars)
+	envVars, err := ParseEnvVars(ctx, rf.Env, dotenvVars)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +70,8 @@ func (rf *Runfile) resolveEnv(ctx *types.Context) (map[string]string, error) {
 	return fn.MapMerge(dotenvVars, envVars), nil
 }
 
-func (rf *Runfile) resolveIncludedTasks(ctx *types.Context) (map[string]task.Task, error) {
-	tasks := make(map[string]task.Task)
+func (rf *Runfile) resolveIncludedTasks(ctx *types.Context) (map[string]Task, error) {
+	tasks := make(map[string]Task)
 
 	for k, v := range rf.Includes {
 		r, err := ParseFromFile(ctx, v.Runfile)
