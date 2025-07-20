@@ -1,17 +1,19 @@
-package types
+package task
 
-type Runfile struct {
-	Filepath string                 `json:"-"`
-	Version  string                 `json:"version,omitempty"`
-	Includes map[string]IncludeSpec `json:"includes"`
-	Env      EnvVar                 `json:"env,omitempty"`
-	DotEnv   []string               `json:"dotEnv,omitempty"`
-	Tasks    map[string]Task        `json:"tasks"`
+import (
+	"github.com/nxtcoder17/runfile/pkg/types"
+)
+
+type Context struct {
+	*types.Context
+	taskTrail []string
 }
 
-type IncludeSpec struct {
-	Runfile string `json:"runfile"`
-	Dir     string `json:"dir,omitempty"`
+func NewContext(ctx *types.Context) *Context {
+	return &Context{
+		Context:   ctx,
+		taskTrail: nil,
+	}
 }
 
 // Only one of the fields must be set
@@ -20,16 +22,7 @@ type Requires struct {
 	GoTmpl *string `json:"gotmpl,omitempty"`
 }
 
-/*
-// EnvVar Values could take multiple forms:
-- my_key: "value"
-or
-  - my_key:
-    sh: "echo hello hi"
-
-Object values with `sh` key, such that the output of this command will be the value of the top-level key
-*/
-type EnvVar map[string]any
+type Shell []string
 
 type TaskMetadata struct {
 	RunfilePath string `json:"-"`
@@ -52,17 +45,11 @@ type Task struct {
 	Metadata struct {
 		RunfilePath *string
 		Namespace   string
-	}
+	} `json:"-"`
 
 	Name string `json:"-"`
-	// Shell in which above commands will be executed
-	// Default: ["sh", "-c"]
-	/* Common Usecases could be:
-	   - ["bash", "-c"]
-	   - ["python", "-c"]
-	   - ["node", "-e"]
-	*/
-	Shell Shell `json:"shell"`
+
+	Shell any `json:"shell"`
 
 	// load env vars from [.env](https://www.google.com/search?q=sample+dotenv+files&udm=2) files
 	DotEnv []string `json:"dotenv"`
@@ -70,7 +57,9 @@ type Task struct {
 	// working directory for the task
 	Dir *string `json:"dir,omitempty"`
 
-	Env EnvVar `json:"env,omitempty"`
+	Env types.EnvExpr `json:"env,omitempty"`
+
+	ParentEnv map[string]string `json:"-"`
 
 	Watch *TaskWatch `json:"watch"`
 
@@ -88,14 +77,43 @@ type Task struct {
 	//       `run`, signifying other tasks to run
 	//       `if`, condition when to run this server
 	Commands []any `json:"cmd"`
+
+	AllTasks map[string]Task `json:"-"`
 }
 
 type CommandJson struct {
 	Command *string `json:"cmd"`
 	Run     *string `json:"run"`
 
-	Env EnvVar `json:"env"`
+	Env types.Env `json:"env"`
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`
+}
+
+type ParsedTask struct {
+	// Name should be resolved from key itself
+	Name string `json:"-"`
+
+	Shell       Shell
+	Dir         string
+	Watch       *TaskWatch
+	Env         map[string]string
+	Interactive bool
+
+	// Parallel allows you to run commands or run targets in parallel
+	Parallel bool
+
+	Commands []ParsedCommandJson
+
+	AllTasks *[]Task
+}
+
+type ParsedCommandJson struct {
+	Command *string           `json:"cmd"`
+	Run     *string           `json:"run"`
+	Env     map[string]string `json:"env"`
+
+	// If is a go template expression, which must evaluate to true, for task to run
+	If *bool `json:"if"`
 }

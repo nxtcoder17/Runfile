@@ -13,11 +13,8 @@ import (
 	"time"
 
 	"github.com/nxtcoder17/fastlog"
-	"github.com/nxtcoder17/runfile/errors"
-	"github.com/nxtcoder17/runfile/runner"
-	"github.com/nxtcoder17/runfile/types"
-
-	"github.com/nxtcoder17/runfile/parser"
+	"github.com/nxtcoder17/runfile/pkg/runfile"
+	"github.com/nxtcoder17/runfile/pkg/types"
 	"github.com/urfave/cli/v3"
 )
 
@@ -189,6 +186,7 @@ func main() {
 			}
 
 			logger := fastlog.New(fastlog.Options{
+				Format:        fastlog.ConsoleFormat,
 				EnableColors:  true,
 				ShowCaller:    true,
 				ShowTimestamp: false,
@@ -201,33 +199,31 @@ func main() {
 				return err
 			}
 
-			runfileCtx := types.NewContext(ctx, logger)
+			rctx := &types.Context{Context: ctx, Logger: logger}
 
-			rf, err2 := parser.ParseRunfile(runfileCtx, runfilePath)
-			if err2 != nil {
-				slog.Error("parsing runfile, got", "err", err2)
-				panic(err2)
+			rf, err := runfile.ParseFromFile(rctx, runfilePath)
+			if err != nil {
+				slog.Error("parsing runfile, got", "err", err)
+				panic(err)
 			}
 
-			if err := runner.Run(runfileCtx, rf, runner.RunArgs{
-				Tasks:             args,
+			if err := rf.Run(rctx, args, runfile.RunOption{
 				ExecuteInParallel: parallel,
 				Watch:             watch,
 				Debug:             debug,
 				KVs:               kv,
 			}); err != nil {
-				errm, ok := err.(*errors.Error)
-				slog.Debug("got", "err", err)
-				if ok {
-					if errm != nil {
-						// errm.Error()
-						// TODO: change it to a better logging
-						// slog.Error("got", "err", errm)
-						errm.Log()
-					}
-				} else {
-					slog.Error("got", "err", err)
-				}
+				slog.Error("got", "err", err)
+				// if ok {
+				// 	if errm != nil {
+				// 		// errm.Error()
+				// 		// TODO: change it to a better logging
+				// 		slog.Error("got", "err", errm)
+				// 		// errm.Log()
+				// 	}
+				// } else {
+				// 	slog.Error("got", "err", err)
+				// }
 			}
 
 			return nil

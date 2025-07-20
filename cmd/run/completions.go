@@ -6,13 +6,13 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/nxtcoder17/go.pkgs/log"
-	"github.com/nxtcoder17/runfile/parser"
-	"github.com/nxtcoder17/runfile/types"
+	"github.com/nxtcoder17/fastlog"
+	"github.com/nxtcoder17/runfile/pkg/runfile"
+	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
 func generateShellCompletion(ctx context.Context, writer io.Writer, rfpath string) error {
-	runfile, err := parser.ParseRunfile(types.NewContext(ctx, log.New()), rfpath)
+	runfile, err := runfile.ParseFromFile(&types.Context{Context: ctx, Logger: fastlog.New()}, rfpath)
 	if err != nil {
 		slog.Error("parsing, got", "err", err)
 		panic(err)

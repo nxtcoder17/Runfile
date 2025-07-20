@@ -1,11 +1,11 @@
 package functions
 
+import "maps"
+
 func MapMerge[K comparable, V any](items ...map[K]V) map[K]V {
 	result := make(map[K]V)
 	for i := range items {
-		for k, v := range items[i] {
-			result[k] = v
-		}
+		maps.Copy(result, items[i])
 	}
 	return result
 }

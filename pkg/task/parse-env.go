@@ -1,4 +1,4 @@
-package parser
+package task
 
 import (
 	"bytes"
@@ -8,16 +8,14 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/nxtcoder17/runfile/errors"
-	fn "github.com/nxtcoder17/runfile/functions"
-	"github.com/nxtcoder17/runfile/types"
+	"github.com/nxtcoder17/runfile/pkg/errors"
+	fn "github.com/nxtcoder17/runfile/pkg/functions"
+	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
-type evaluationParams struct {
-	Env map[string]string
-}
-
 /*
+parseEnvVars processes environment variables from types.EnvVar format.
+
 EnvVar can be provided in multiple forms:
 
 > key1: "value1"
@@ -39,7 +37,8 @@ or,
 > key1:
 >   sh: "echo hi"
 */
-func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (map[string]string, error) {
+
+func ParseEnvVars(ctx *types.Context, ev types.EnvExpr, parentEnv map[string]string) (map[string]string, error) {
 	env := make(map[string]string, len(ev))
 	for k, v := range ev {
 		attr := []any{"env.key", k, "env.value", v}
@@ -52,7 +51,7 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 				continue
 			}
 
-			if s, ok := params.Env[k]; ok {
+			if s, ok := parentEnv[k]; ok {
 				env[k] = s
 				continue
 			}
@@ -63,20 +62,19 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 			if hasRequired, ok := v["required"]; ok {
 				required, ok := hasRequired.(bool)
 				if !ok {
-					return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(fmt.Errorf("required field must be a boolean")).KV(attr...)
+					return nil, errors.WrapStr("required field must be a boolean").KV(attr...)
 				}
 
 				if required {
-					return nil, errors.ErrRequiredEnvVar(k).WithCtx(ctx).KV(attr...)
+					return nil, errors.ErrRequiredEnvVar(k).KV(attr...)
 				}
 			}
 
 			if defaultVal, ok := v["default"]; ok {
-				pDefaults, err := parseEnvVars(ctx, types.EnvVar{k: defaultVal}, params)
+				pDefaults, err := ParseEnvVars(ctx, types.EnvExpr{k: defaultVal}, parentEnv)
 				if err != nil {
-					// return nil, errors.ErrInvalidDefaultValue(k, defaultVal).WithCtx(ctx).Wrap(err).KV(attr...)
 					defaultValJson, _ := json.MarshalIndent(defaultVal, "", "  ")
-					return nil, errors.ErrInvalidDefaultValue(k, string(defaultValJson)).WithCtx(ctx).Wrap(err)
+					return nil, errors.ErrInvalidDefaultValue(err, k, string(defaultValJson))
 				}
 
 				if dv, ok := pDefaults[k]; ok {
@@ -87,7 +85,7 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 
 			b, err := json.Marshal(v)
 			if err != nil {
-				return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(err).KV(attr...)
+				return nil, errors.ErrInvalidEnvVar(k, err).KV(attr...)
 			}
 
 			var specials struct {
@@ -95,7 +93,7 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 			}
 
 			if err := json.Unmarshal(b, &specials); err != nil {
-				return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(err).KV(attr...)
+				return nil, errors.ErrInvalidEnvVar(k, err).KV(attr...)
 			}
 
 			switch {
@@ -103,7 +101,7 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 				{
 					*specials.Sh = strings.TrimSpace(*specials.Sh)
 					cmd := exec.CommandContext(ctx, "sh", "-c", *specials.Sh)
-					cmd.Env = fn.ToEnviron(params.Env)
+					cmd.Env = fn.ToEnviron(parentEnv)
 
 					stdoutB := new(bytes.Buffer)
 					cmd.Stdout = stdoutB
@@ -111,15 +109,14 @@ func parseEnvVars(ctx types.Context, ev types.EnvVar, params evaluationParams) (
 					stderrB := new(bytes.Buffer)
 					cmd.Stderr = stderrB
 					if err := cmd.Run(); err != nil {
-						return nil, errors.ErrEvalEnvVarSh.WithCtx(ctx).WrapStr(stderrB.String()).KV()
-						// return nil, errors.ErrEvalEnvVarSh.WithCtx(ctx).KV(attr...)
+						return nil, errors.ErrEvalEnvVarSh(fmt.Errorf("stderr: %s", stderrB.String())).KV(attr...)
 					}
 
 					env[k] = strings.TrimSpace(stdoutB.String())
 				}
 			default:
 				{
-					return nil, errors.ErrInvalidEnvVar(k).WithCtx(ctx).Wrap(fmt.Errorf("invalid env format")).KV(attr...)
+					return nil, errors.ErrInvalidEnvVar(k, fmt.Errorf("invalid env format")).KV(attr...)
 				}
 			}
 

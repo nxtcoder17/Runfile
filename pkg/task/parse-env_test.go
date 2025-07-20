@@ -1,17 +1,17 @@
-package parser
+package task
 
 import (
 	"context"
 	"reflect"
 	"testing"
 
-	"github.com/nxtcoder17/go.pkgs/log"
-	. "github.com/nxtcoder17/runfile/types"
+	"github.com/nxtcoder17/fastlog"
+	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
-func Test_ParseEnvVars(t *testing.T) {
+func Test_ParseEnvExprs(t *testing.T) {
 	type args struct {
-		envVars    EnvVar
+		envVars    types.EnvExpr
 		testingEnv map[string]string
 	}
 
@@ -26,7 +26,7 @@ func Test_ParseEnvVars(t *testing.T) {
 		{
 			name: "1. must fail [when] required env is not provided",
 			args: args{
-				envVars: EnvVar{
+				envVars: types.EnvExpr{
 					"hello": map[string]any{
 						"required": true,
 					},
@@ -39,7 +39,7 @@ func Test_ParseEnvVars(t *testing.T) {
 		{
 			name: "2. must pass [when] required env is provided",
 			args: args{
-				envVars: EnvVar{
+				envVars: types.EnvExpr{
 					"hello": map[string]any{
 						"required": true,
 					},
@@ -56,7 +56,7 @@ func Test_ParseEnvVars(t *testing.T) {
 		{
 			name: "3. must fail [when] default not provided",
 			args: args{
-				envVars: EnvVar{
+				envVars: types.EnvExpr{
 					"hello": map[string]any{
 						"required": true,
 					},
@@ -67,7 +67,7 @@ func Test_ParseEnvVars(t *testing.T) {
 		{
 			name: "4. must pass [when] default value is provided",
 			args: args{
-				envVars: EnvVar{
+				envVars: types.EnvExpr{
 					"hello": map[string]any{
 						"default": "world",
 					},
@@ -82,7 +82,7 @@ func Test_ParseEnvVars(t *testing.T) {
 		{
 			name: "5. must fail [when] default sh command exits with non-zero",
 			args: args{
-				envVars: EnvVar{
+				envVars: types.EnvExpr{
 					"hello": map[string]any{
 						"default": map[string]any{
 							"sh": "exit 1",
@@ -95,7 +95,7 @@ func Test_ParseEnvVars(t *testing.T) {
 		{
 			name: "6. must pass [when] default sh command exits with zero",
 			args: args{
-				envVars: EnvVar{
+				envVars: types.EnvExpr{
 					"hello": map[string]any{
 						"default": map[string]any{
 							"sh": "echo hi",
@@ -112,16 +112,14 @@ func Test_ParseEnvVars(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseEnvVars(Context{Context: context.TODO(), Logger: log.New(), TaskName: "test"}, tt.args.envVars, evaluationParams{
-				Env: tt.args.testingEnv,
-			})
+			got, err := ParseEnvVars(types.Context{Context: context.TODO(), Logger: fastlog.New()}, tt.args.envVars, tt.args.testingEnv)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("ParseEnvVars():> got = %v, error = %v, wantErr %v", got, err, tt.wantErr)
+				t.Errorf("Parsetypes.EnvExprs():> got = %v, error = %v, wantErr %v", got, err, tt.wantErr)
 				return
 			}
 
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseEnvVars():> \n\tgot:\t%v,\n\twant:\t%v", got, tt.want)
+				t.Errorf("parsetypes.EnvExprs():> \n\tgot:\t%v,\n\twant:\t%v", got, tt.want)
 			}
 		})
 	}

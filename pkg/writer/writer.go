@@ -1,12 +1,12 @@
-package runner
+package writer
 
 import (
 	"bytes"
 	"errors"
 	"io"
+	"os"
+	"strings"
 	"sync"
-
-	"github.com/nxtcoder17/runfile/types"
 )
 
 type PrefixedWriter struct {
@@ -40,8 +40,13 @@ func (pw *PrefixedWriter) Write(p []byte) (int, error) {
 
 var _ io.Writer = (*PrefixedWriter)(nil)
 
+func hasANSISupport() bool {
+	term := os.Getenv("TERM")
+	return strings.Contains(term, "xterm") || strings.Contains(term, "screen") || strings.Contains(term, "vt100") || strings.Contains(term, "tmux")
+}
+
 type LogWriter struct {
-	w  io.Writer
+	io.Writer
 	mu sync.Mutex
 	wg sync.WaitGroup
 }
@@ -50,18 +55,18 @@ type LogWriter struct {
 func (s *LogWriter) Write(p []byte) (n int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.w.Write(p)
+	return s.Writer.Write(p)
 }
 
 var _ io.Writer = (*LogWriter)(nil)
 
 func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 	if prefix != "" && hasANSISupport() {
-		prefix = types.GetStyledPrefix(prefix)
+		prefix = GetStyledPrefix(prefix)
 	}
 
 	return &PrefixedWriter{
-		w:      s.w,
+		w:      s.Writer,
 		prefix: []byte(prefix),
 		buf:    bytes.NewBuffer(nil),
 		render: func(b []byte) []byte { return b },
@@ -70,13 +75,13 @@ func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 
 func (s *LogWriter) WithDimmedPrefix(prefix string) io.Writer {
 	if prefix != "" && hasANSISupport() {
-		prefix = types.GetDimStyledPrefix(prefix)
+		prefix = GetDimStyledPrefix(prefix)
 	}
 
 	return &PrefixedWriter{
-		w:      s.w,
+		w:      s.Writer,
 		prefix: []byte(prefix),
 		buf:    bytes.NewBuffer(nil),
-		render: func(b []byte) []byte { return []byte(types.GetDimmedText(b)) },
+		render: func(b []byte) []byte { return []byte(GetDimmedText(b)) },
 	}
 }
