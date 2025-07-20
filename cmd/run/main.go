@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/nxtcoder17/fastlog"
+	"github.com/nxtcoder17/runfile/pkg/errors"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/nxtcoder17/runfile/pkg/types"
 	"github.com/urfave/cli/v3"
@@ -188,7 +189,7 @@ func main() {
 			logger := fastlog.New(fastlog.Options{
 				Format:        fastlog.ConsoleFormat,
 				EnableColors:  true,
-				ShowCaller:    true,
+				ShowCaller:    debug,
 				ShowTimestamp: false,
 				ShowDebugLogs: debug,
 			})
@@ -213,17 +214,9 @@ func main() {
 				Debug:             debug,
 				KVs:               kv,
 			}); err != nil {
-				slog.Error("got", "err", err)
-				// if ok {
-				// 	if errm != nil {
-				// 		// errm.Error()
-				// 		// TODO: change it to a better logging
-				// 		slog.Error("got", "err", errm)
-				// 		// errm.Log()
-				// 	}
-				// } else {
-				// 	slog.Error("got", "err", err)
-				// }
+				if err2, ok := err.(*errors.Error); ok {
+					logger.Error(err2.Error(), err2.SlogAttrs()...)
+				}
 			}
 
 			return nil

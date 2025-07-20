@@ -3,6 +3,7 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 type Error struct {
@@ -38,11 +39,35 @@ func (e *Error) KV(kv ...any) *Error {
 
 // Error implements error.
 func (e *Error) Error() string {
-	if len(e.kv) > 0 {
-		return fmt.Sprintf("%s %+v", e.err.Error(), e.kv)
+	if e.msg != nil {
+		return fmt.Sprintf("%s [%s]", e.err.Error(), *e.msg)
 	}
 
 	return e.err.Error()
+}
+
+func (e *Error) GetMsg() string {
+	if e.msg != nil {
+		return *e.msg
+	}
+	return ""
+}
+
+func (e *Error) SlogAttrs() []any {
+	keys := make([]string, 0, len(e.kv))
+	for k := range e.kv {
+		keys = append(keys, k)
+	}
+
+	slices.Sort(keys)
+
+	result := make([]any, 0, len(e.kv)*2)
+
+	for _, k := range keys {
+		result = append(result, k, e.kv[k])
+	}
+
+	return result
 }
 
 func WrapErr(err error) *Error {
