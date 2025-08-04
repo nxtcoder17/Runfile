@@ -10,7 +10,7 @@ tasks:
     cmd: 
       - |+
         echo "building ..."
-        go build -o bin/run -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
+        go build -o bin/run-nightly -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
         echo "DONE"
 
   example:
@@ -38,12 +38,12 @@ tasks:
     cmd:
       - |+
         pattern_args=""
-        [ -n "$pattern" ] && pattern_args="-run '$pattern'"
+        [ -n "$pattern" ] && pattern_args="-run $pattern"
 
         testfmt_args=""
         [ "$only_failing" = "true" ] && testfmt_args="--hide successful-tests"
 
-        go test -json ./parser/... $pattern_args | gotestfmt $testfmt_args
+        go test -json ./pkg/runfile/... $pattern_args | gotestfmt $testfmt_args
 
   test:only-failing:
     cmd:

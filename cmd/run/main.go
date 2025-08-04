@@ -12,22 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/nxtcoder17/go.pkgs/log"
-	"github.com/nxtcoder17/runfile/errors"
-	"github.com/nxtcoder17/runfile/runner"
-	"github.com/nxtcoder17/runfile/types"
-
-	"github.com/nxtcoder17/runfile/parser"
+	"github.com/nxtcoder17/fastlog"
+	"github.com/nxtcoder17/runfile/pkg/errors"
+	"github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/urfave/cli/v3"
 )
 
-var Version string = fmt.Sprintf("nightly | %s", time.Now().Format(time.RFC3339))
-
-var runfileNames []string = []string{
-	"Runfile",
-	"Runfile.yml",
-	"Runfile.yaml",
-}
+var Version string
 
 //go:embed completions/run.fish
 var shellCompletionFISH string
@@ -42,6 +33,10 @@ var shellCompletionZSH string
 var shellCompletionPS string
 
 func main() {
+	if Version == "" {
+		Version = fmt.Sprintf("nightly | %s", time.Now().Format(time.RFC3339))
+	}
+
 	cmd := cli.Command{
 		Name:        "run",
 		Version:     Version,
@@ -190,9 +185,11 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			logger := log.New(log.Options{
-				ShowCaller:    true,
-				ShowLogLevel:  true,
+			logger := fastlog.New(fastlog.Options{
+				Format:        fastlog.ConsoleFormat,
+				EnableColors:  true,
+				ShowCaller:    debug,
+				ShowTimestamp: false,
 				ShowDebugLogs: debug,
 			})
 
@@ -202,32 +199,22 @@ func main() {
 				return err
 			}
 
-			runfileCtx := types.NewContext(ctx, logger)
+			rctx := runfile.NewContext(ctx, logger)
 
-			rf, err2 := parser.ParseRunfile(runfileCtx, runfilePath)
-			if err2 != nil {
-				slog.Error("parsing runfile, got", "err", err2)
-				panic(err2)
+			rf, err := runfile.ParseFromFile(rctx, runfilePath)
+			if err != nil {
+				slog.Error("parsing runfile, got", "err", err)
+				panic(err)
 			}
 
-			if err := runner.Run(runfileCtx, rf, runner.RunArgs{
-				Tasks:             args,
+			if err := rf.Run(rctx, args, runfile.RunOption{
 				ExecuteInParallel: parallel,
 				Watch:             watch,
 				Debug:             debug,
 				KVs:               kv,
 			}); err != nil {
-				errm, ok := err.(*errors.Error)
-				slog.Debug("got", "err", err)
-				if ok {
-					if errm != nil {
-						// errm.Error()
-						// TODO: change it to a better logging
-						// slog.Error("got", "err", errm)
-						errm.Log()
-					}
-				} else {
-					slog.Error("got", "err", err)
+				if err2, ok := err.(*errors.Error); ok {
+					logger.Error(err2.Error(), err2.SlogAttrs()...)
 				}
 			}
 
@@ -259,6 +246,12 @@ func locateRunfile(c *cli.Command) (string, error) {
 		}
 
 		oldDir := ""
+
+		runfileNames := []string{
+			"Runfile",
+			"Runfile.yml",
+			"Runfile.yaml",
+		}
 
 		for oldDir != dir {
 			for _, fn := range runfileNames {
