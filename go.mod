@@ -10,8 +10,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/muesli/termenv v0.15.2
 	github.com/nxtcoder17/fastlog v0.0.0-20250702035423-1739653a5c24
-	github.com/nxtcoder17/fwatcher v1.2.2-0.20250318121757-bfc2065fa9f5
-	github.com/nxtcoder17/go.pkgs v0.0.0-20250216034729-39e2d2cd48da
+	github.com/nxtcoder17/fwatcher v1.2.2-0.20250804201159-543ad31be162
 	github.com/urfave/cli/v3 v3.0.0-beta1
 	golang.org/x/sync v0.10.0
 	golang.org/x/term v0.32.0
@@ -28,6 +27,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/nxtcoder17/go.pkgs v0.0.0-20250216034729-39e2d2cd48da // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/samber/lo v1.47.0 // indirect
