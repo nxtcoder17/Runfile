@@ -87,6 +87,7 @@ func CreateCommand(ctx context.Context, args CmdArgs) *exec.Cmd {
 	shell := args.Shell[0]
 
 	cargs := append(args.Shell[1:], args.Cmd)
+	// #nosec G204 - shell is from a predefined map, command is passed via shell's -c flag
 	c := exec.CommandContext(ctx, shell, cargs...)
 	c.Dir = func() string {
 		if args.WorkingDir != nil {
@@ -277,7 +278,7 @@ func (r *ParsedRunfile) RunTask(ctx *Context, name string) error {
 	}
 
 	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
-		Logger:      ctx.Logger.Slog(),
+		Logger:      ctx.Logger().Slog(),
 		Interactive: task.Interactive,
 		Commands:    commandGroups,
 		Parallel:    task.Parallel,
@@ -287,7 +288,7 @@ func (r *ParsedRunfile) RunTask(ctx *Context, name string) error {
 	case true:
 		{
 			if err := ex.Start(); err != nil {
-				ctx.Logger.Error("while running command, got", "err", err)
+				ctx.Logger().Error("while running command, got", "err", err)
 				return err
 			}
 			ctx.Debug("completed")
@@ -297,7 +298,7 @@ func (r *ParsedRunfile) RunTask(ctx *Context, name string) error {
 			var wg sync.WaitGroup
 			if task.Watch != nil && (task.Watch.Enable == nil || *task.Watch.Enable) {
 				watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
-					Logger: ctx.Logger.Slog(),
+					Logger: ctx.Logger().Slog(),
 					// WatchDirs:            append(t.Watch.Dirs, t.Dir),
 					WatchDirs:            task.Watch.Dirs,
 					IgnoreDirs:           task.Watch.IgnoreDirs,
@@ -315,7 +316,7 @@ func (r *ParsedRunfile) RunTask(ctx *Context, name string) error {
 				go func() {
 					defer wg.Done()
 					<-ctx.Done()
-					ctx.Logger.Info("fwatcher is closing ...")
+					ctx.Logger().Info("fwatcher is closing ...")
 					watch.Close()
 				}()
 

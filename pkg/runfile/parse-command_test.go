@@ -1,14 +1,11 @@
 package runfile
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/nxtcoder17/fastlog"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
 func testParseCommandJsonEqual(t *testing.T, got, want *ParsedCommandJson) {
@@ -198,10 +195,7 @@ func Test_parseCommand(t *testing.T) {
 		},
 	}
 
-	ctx := NewContext(&types.Context{
-		Context: context.TODO(),
-		Logger:  fastlog.New(),
-	})
+	ctx := NewTestContext()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

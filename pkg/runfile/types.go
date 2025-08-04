@@ -1,19 +1,44 @@
 package runfile
 
 import (
-	"github.com/nxtcoder17/runfile/pkg/types"
+	"context"
+	"io"
+
+	"github.com/nxtcoder17/fastlog"
+)
+
+type (
+	EnvExpr map[string]any
+	Env     map[string]string
 )
 
 type Context struct {
-	*types.Context
+	context.Context
+	logger    *fastlog.Logger
 	taskTrail []string
 }
 
-func NewContext(ctx *types.Context) *Context {
+func NewContext(ctx context.Context, logger *fastlog.Logger) *Context {
 	return &Context{
 		Context:   ctx,
+		logger:    logger,
 		taskTrail: nil,
 	}
+}
+
+// NewTestContext creates a new Context suitable for testing
+func NewTestContext() *Context {
+	return NewContext(context.TODO(), fastlog.New(fastlog.Options{Writer: io.Discard}))
+}
+
+// Logger returns the logger instance
+func (c *Context) Logger() *fastlog.Logger {
+	return c.logger
+}
+
+// Debug logs a debug message
+func (c *Context) Debug(msg string, args ...any) {
+	c.logger.Debug(msg, args...)
 }
 
 // Only one of the fields must be set
@@ -57,7 +82,7 @@ type Task struct {
 	// working directory for the task
 	Dir *string `json:"dir,omitempty"`
 
-	Env types.EnvExpr `json:"env,omitempty"`
+	Env EnvExpr `json:"env,omitempty"`
 
 	ParentEnv map[string]string `json:"-"`
 
@@ -83,29 +108,12 @@ type CommandJson struct {
 	Command *string `json:"cmd"`
 	Run     *string `json:"run"`
 
-	Env types.Env `json:"env"`
+	Env Env `json:"env"`
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *string `json:"if,omitempty"`
 }
 
-//	type ParsedTask struct {
-//		// Name should be resolved from key itself
-//		Name string `json:"-"`
-//
-//		Shell       Shell
-//		Dir         string
-//		Watch       *TaskWatch
-//		Env         map[string]string
-//		Interactive bool
-//
-//		// Parallel allows you to run commands or run targets in parallel
-//		Parallel bool
-//
-//		Commands []ParsedCommandJson
-//
-//		AllTasks *[]Task
-//	}
 type ParsedCommandJson struct {
 	Command *string           `json:"cmd"`
 	Run     *string           `json:"run"`
@@ -113,4 +121,24 @@ type ParsedCommandJson struct {
 
 	// If is a go template expression, which must evaluate to true, for task to run
 	If *bool `json:"if"`
+}
+
+type Runfile struct {
+	Filepath string `json:"-"`
+
+	Version  string                 `json:"version,omitempty"`
+	Includes map[string]IncludeSpec `json:"includes"`
+	Env      EnvExpr                `json:"env,omitempty"`
+	DotEnv   []string               `json:"dotEnv,omitempty"`
+	Tasks    map[string]Task        `json:"tasks"`
+}
+
+type IncludeSpec struct {
+	Runfile string `json:"runfile"`
+	Dir     string `json:"dir,omitempty"`
+}
+
+type ParsedRunfile struct {
+	Env   map[string]string
+	Tasks map[string]Task
 }

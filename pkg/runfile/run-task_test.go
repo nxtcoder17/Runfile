@@ -8,16 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nxtcoder17/fastlog"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/types"
 	"github.com/nxtcoder17/runfile/pkg/writer"
 )
-
-func Test_isDarkTheme(t *testing.T) {
-	// This test just ensures the function doesn't panic
-	_ = isDarkTheme()
-}
 
 func Test_longestLineLen(t *testing.T) {
 	tests := []struct {
@@ -309,10 +302,7 @@ func TestParsedRunfile_RunTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := NewContext(&types.Context{
-				Context: context.Background(),
-				Logger:  fastlog.New(),
-			})
+			ctx := NewTestContext()
 
 			// For successful cases, we need to capture output
 			if !tt.wantErr {
@@ -385,10 +375,7 @@ func TestParsedRunfile_createCommandGroups(t *testing.T) {
 		},
 	}
 
-	ctx := NewContext(&types.Context{
-		Context: context.Background(),
-		Logger:  fastlog.New(),
-	})
+	ctx := NewTestContext()
 
 	// Parse env for each task
 	for name, task := range runfile.Tasks {
@@ -450,40 +437,6 @@ func TestParsedRunfile_createCommandGroups(t *testing.T) {
 
 			if !tt.wantErr && len(got) != tt.wantLen {
 				t.Errorf("createCommandGroups() returned %d groups, want %d", len(got), tt.wantLen)
-			}
-		})
-	}
-}
-
-func Test_printCommand(t *testing.T) {
-	// Just test that it doesn't panic
-	tests := []struct {
-		name   string
-		prefix string
-		lang   string
-		cmd    string
-	}{
-		{
-			name:   "1. When printing simple command, It should format correctly",
-			prefix: "test",
-			lang:   "bash",
-			cmd:    "echo hello",
-		},
-		{
-			name:   "2. When printing multi-line command, It should format each line",
-			prefix: "build",
-			lang:   "sh",
-			cmd:    "echo line1\necho line2",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			printCommand(&buf, tt.prefix, tt.lang, tt.cmd)
-			// Just ensure something was written
-			if buf.Len() == 0 && writer.IsANSITerminal() {
-				t.Error("printCommand() wrote nothing to buffer in TTY mode")
 			}
 		})
 	}

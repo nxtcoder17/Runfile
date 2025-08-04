@@ -10,11 +10,10 @@ import (
 
 	"github.com/nxtcoder17/runfile/pkg/errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
 /*
-parseEnvVars processes environment variables from types.EnvVar format.
+parseEnvVars processes environment variables from EnvExpr format.
 
 EnvVar can be provided in multiple forms:
 
@@ -38,7 +37,7 @@ or,
 >   sh: "echo hi"
 */
 
-func ParseEnvVars(ctx *types.Context, ev types.EnvExpr, parentEnv map[string]string) (map[string]string, error) {
+func ParseEnvVars(ctx *Context, ev EnvExpr, parentEnv map[string]string) (map[string]string, error) {
 	env := make(map[string]string, len(ev))
 	for k, v := range ev {
 		attr := []any{"env.key", k, "env.value", v}
@@ -71,7 +70,7 @@ func ParseEnvVars(ctx *types.Context, ev types.EnvExpr, parentEnv map[string]str
 			}
 
 			if defaultVal, ok := v["default"]; ok {
-				pDefaults, err := ParseEnvVars(ctx, types.EnvExpr{k: defaultVal}, parentEnv)
+				pDefaults, err := ParseEnvVars(ctx, EnvExpr{k: defaultVal}, parentEnv)
 				if err != nil {
 					defaultValJson, _ := json.MarshalIndent(defaultVal, "", "  ")
 					return nil, errors.ErrInvalidDefaultValue(err, k, string(defaultValJson))

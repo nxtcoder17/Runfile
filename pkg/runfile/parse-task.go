@@ -43,7 +43,7 @@ func (r *ParsedRunfile) ParseTaskEnv(ctx *Context, taskName string, parentEnv ma
 
 	maps.Copy(env, tdotenv)
 
-	tenv, err := ParseEnvVars(ctx.Context, task.Env, env)
+	tenv, err := ParseEnvVars(ctx, task.Env, env)
 	if err != nil {
 		return nil, err
 	}

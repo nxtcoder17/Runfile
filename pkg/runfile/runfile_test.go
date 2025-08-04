@@ -1,14 +1,10 @@
 package runfile
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
-
-	"github.com/nxtcoder17/fastlog"
-	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
 func TestParseFromFile(t *testing.T) {
@@ -73,10 +69,7 @@ tasks:
 		t.Fatal(err)
 	}
 
-	ctx := &types.Context{
-		Context: context.TODO(),
-		Logger:  fastlog.New(),
-	}
+	ctx := NewTestContext()
 
 	tests := []struct {
 		name    string
@@ -196,10 +189,7 @@ func TestRunfile_resolveEnv(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := &types.Context{
-		Context: context.TODO(),
-		Logger:  fastlog.New(),
-	}
+	ctx := NewTestContext()
 
 	tests := []struct {
 		name    string
@@ -219,7 +209,7 @@ func TestRunfile_resolveEnv(t *testing.T) {
 			name: "2. When only env vars specified, It should parse env vars",
 			runfile: &Runfile{
 				Filepath: filepath.Join(tmpDir, "Runfile"),
-				Env: types.EnvExpr{
+				Env: EnvExpr{
 					"KEY1": "value1",
 					"KEY2": "value2",
 				},
@@ -260,7 +250,7 @@ func TestRunfile_resolveEnv(t *testing.T) {
 			runfile: &Runfile{
 				Filepath: filepath.Join(tmpDir, "Runfile"),
 				DotEnv:   []string{env1Path},
-				Env: types.EnvExpr{
+				Env: EnvExpr{
 					"VAR1": "env_override",
 					"NEW":  "new_value",
 				},
@@ -343,10 +333,7 @@ tasks:
 		t.Fatal(err)
 	}
 
-	ctx := &types.Context{
-		Context: context.TODO(),
-		Logger:  fastlog.New(),
-	}
+	ctx := NewTestContext()
 
 	tests := []struct {
 		name    string

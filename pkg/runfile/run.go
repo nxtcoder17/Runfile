@@ -2,7 +2,6 @@ package runfile
 
 import (
 	"github.com/nxtcoder17/runfile/pkg/errors"
-	"github.com/nxtcoder17/runfile/pkg/types"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -13,7 +12,7 @@ type RunOption struct {
 	KVs               map[string]string
 }
 
-func (r *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) error {
+func (r *ParsedRunfile) Run(ctx *Context, tasks []string, opt RunOption) error {
 	for k, v := range opt.KVs {
 		if r.Env == nil {
 			r.Env = make(map[string]string)
@@ -34,7 +33,7 @@ func (r *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) e
 		for _, _tn := range tasks {
 			name := _tn
 			errg.Go(func() error {
-				if err := r.RunTask(NewContext(ctx), name); err != nil {
+				if err := r.RunTask(NewContext(ctx.Context, ctx.Logger()), name); err != nil {
 					return err
 				}
 				return nil
@@ -50,7 +49,7 @@ func (r *ParsedRunfile) Run(ctx *types.Context, tasks []string, opt RunOption) e
 	}
 
 	for _, tn := range tasks {
-		if err := r.RunTask(NewContext(ctx), tn); err != nil {
+		if err := r.RunTask(NewContext(ctx.Context, ctx.Logger()), tn); err != nil {
 			return err
 		}
 	}

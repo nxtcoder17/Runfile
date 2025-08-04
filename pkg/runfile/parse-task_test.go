@@ -1,14 +1,10 @@
 package runfile
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
-
-	"github.com/nxtcoder17/fastlog"
-	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
 func TestParsedRunfile_ParseTaskEnv(t *testing.T) {
@@ -69,7 +65,7 @@ func TestParsedRunfile_ParseTaskEnv(t *testing.T) {
 						}{
 							RunfilePath: stringPtr(filepath.Join(tmpDir, "Runfile")),
 						},
-						Env: types.EnvExpr{
+						Env: EnvExpr{
 							"TASK_VAR": "task_value",
 							"COMPUTED": "prefix_${GLOBAL}_suffix",
 						},
@@ -175,7 +171,7 @@ func TestParsedRunfile_ParseTaskEnv(t *testing.T) {
 							RunfilePath: stringPtr(filepath.Join(tmpDir, "Runfile")),
 						},
 						DotEnv: []string{"test.env"},
-						Env: types.EnvExpr{
+						Env: EnvExpr{
 							"VAR":       "task",
 							"TASK_ONLY": "task_only",
 						},
@@ -230,10 +226,7 @@ func TestParsedRunfile_ParseTaskEnv(t *testing.T) {
 		},
 	}
 
-	ctx := NewContext(&types.Context{
-		Context: context.TODO(),
-		Logger:  fastlog.New(),
-	})
+	ctx := NewTestContext()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -334,10 +327,7 @@ func TestParsedRunfile_ParseTaskEnv_WithRequires(t *testing.T) {
 		},
 	}
 
-	ctx := NewContext(&types.Context{
-		Context: context.TODO(),
-		Logger:  fastlog.New(),
-	})
+	ctx := NewTestContext()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

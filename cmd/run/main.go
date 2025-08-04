@@ -15,7 +15,6 @@ import (
 	"github.com/nxtcoder17/fastlog"
 	"github.com/nxtcoder17/runfile/pkg/errors"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
-	"github.com/nxtcoder17/runfile/pkg/types"
 	"github.com/urfave/cli/v3"
 )
 
@@ -200,7 +199,7 @@ func main() {
 				return err
 			}
 
-			rctx := &types.Context{Context: ctx, Logger: logger}
+			rctx := runfile.NewContext(ctx, logger)
 
 			rf, err := runfile.ParseFromFile(rctx, runfilePath)
 			if err != nil {

@@ -46,6 +46,11 @@ func (e *Error) Error() string {
 	return e.err.Error()
 }
 
+// Unwrap returns the underlying error for error chain compatibility
+func (e *Error) Unwrap() error {
+	return e.err
+}
+
 func (e *Error) GetMsg() string {
 	if e.msg != nil {
 		return *e.msg
@@ -84,4 +89,10 @@ func WrapStr(v string) *Error {
 		msg: nil,
 		kv:  nil,
 	}
+}
+
+// New creates a new error with the given message
+// This is an alias for WrapStr for consistency
+func New(msg string) *Error {
+	return WrapStr(msg)
 }

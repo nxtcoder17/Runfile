@@ -6,11 +6,10 @@ import (
 
 	"github.com/nxtcoder17/runfile/pkg/errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
-	"github.com/nxtcoder17/runfile/pkg/types"
 	"sigs.k8s.io/yaml"
 )
 
-func ParseFromFile(ctx *types.Context, file string) (*ParsedRunfile, error) {
+func ParseFromFile(ctx *Context, file string) (*ParsedRunfile, error) {
 	var rf Runfile
 	f, err := os.ReadFile(file)
 	if err != nil {
@@ -18,7 +17,7 @@ func ParseFromFile(ctx *types.Context, file string) (*ParsedRunfile, error) {
 	}
 
 	if err := yaml.Unmarshal(f, &rf); err != nil {
-		return nil, errors.ErrParseRunfile(err).Msg("failed to unmarshal YAML into types.Runfile")
+		return nil, errors.ErrParseRunfile(err).Msg("failed to unmarshal YAML into Runfile")
 	}
 
 	rf.Filepath = fn.Must(filepath.Abs(file))
@@ -47,7 +46,7 @@ func ParseFromFile(ctx *types.Context, file string) (*ParsedRunfile, error) {
 	}, nil
 }
 
-func (rf *Runfile) resolveEnv(ctx *types.Context) (map[string]string, error) {
+func (rf *Runfile) resolveEnv(ctx *Context) (map[string]string, error) {
 	dotEnvFiles := make([]string, 0, len(rf.DotEnv))
 	for i := range rf.DotEnv {
 		de := rf.DotEnv[i]
@@ -70,7 +69,7 @@ func (rf *Runfile) resolveEnv(ctx *types.Context) (map[string]string, error) {
 	return fn.MapMerge(dotenvVars, envVars), nil
 }
 
-func (rf *Runfile) resolveIncludedTasks(ctx *types.Context) (map[string]Task, error) {
+func (rf *Runfile) resolveIncludedTasks(ctx *Context) (map[string]Task, error) {
 	tasks := make(map[string]Task)
 
 	for k, v := range rf.Includes {

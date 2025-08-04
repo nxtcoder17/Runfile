@@ -1,11 +1,8 @@
 package runfile
 
 import (
-	"context"
 	"testing"
 
-	"github.com/nxtcoder17/fastlog"
-	"github.com/nxtcoder17/runfile/pkg/types"
 )
 
 func TestParsedRunfile_Run(t *testing.T) {
@@ -42,10 +39,7 @@ func TestParsedRunfile_Run(t *testing.T) {
 		},
 	}
 
-	ctx := &types.Context{
-		Context: context.Background(),
-		Logger:  fastlog.New(),
-	}
+	ctx := NewTestContext()
 
 	tests := []struct {
 		name    string
