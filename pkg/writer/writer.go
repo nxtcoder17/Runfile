@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"os"
-	"strings"
 	"sync"
 )
 
@@ -40,11 +38,6 @@ func (pw *PrefixedWriter) Write(p []byte) (int, error) {
 
 var _ io.Writer = (*PrefixedWriter)(nil)
 
-func hasANSISupport() bool {
-	term := os.Getenv("TERM")
-	return strings.Contains(term, "xterm") || strings.Contains(term, "screen") || strings.Contains(term, "vt100") || strings.Contains(term, "tmux")
-}
-
 type LogWriter struct {
 	io.Writer
 	mu sync.Mutex
@@ -61,7 +54,7 @@ func (s *LogWriter) Write(p []byte) (n int, err error) {
 var _ io.Writer = (*LogWriter)(nil)
 
 func (s *LogWriter) WithPrefix(prefix string) io.Writer {
-	if prefix != "" && hasANSISupport() {
+	if prefix != "" && IsANSITerminal() {
 		prefix = GetStyledPrefix(prefix)
 	}
 
@@ -74,7 +67,7 @@ func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 }
 
 func (s *LogWriter) WithDimmedPrefix(prefix string) io.Writer {
-	if prefix != "" && hasANSISupport() {
+	if prefix != "" && IsANSITerminal() {
 		prefix = GetDimStyledPrefix(prefix)
 	}
 

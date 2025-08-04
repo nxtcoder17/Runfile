@@ -195,6 +195,12 @@ func TestParseDotEnvFiles(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name:    "9. When mix of valid and non-existent absolute paths is provided, It should fail",
+			files:   []string{envFile1, filepath.Join(tmpDir, "does-not-exist.env")},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

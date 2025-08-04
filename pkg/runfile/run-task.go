@@ -59,13 +59,6 @@ func padString(str string, padWith string) string {
 	return strings.Join(sp, "\n")
 }
 
-// [snippet source](https://rderik.com/blog/identify-if-output-goes-to-the-terminal-or-is-being-redirected-in-golang/)
-func isTTY() bool {
-	stdout, _ := os.Stdout.Stat()
-	stderr, _ := os.Stderr.Stat()
-	return ((stdout.Mode() & os.ModeCharDevice) == os.ModeCharDevice) && ((stderr.Mode() & os.ModeCharDevice) == os.ModeCharDevice)
-}
-
 type CmdArgs struct {
 	Shell      []string
 	Env        []string // [key=value, key=value, ...]
@@ -112,8 +105,8 @@ func CreateCommand(ctx context.Context, args CmdArgs) *exec.Cmd {
 	return c
 }
 
-func printCommand(writer io.Writer, prefix, lang, cmd string) {
-	if isTTY() {
+func printCommand(w io.Writer, prefix, lang, cmd string) {
+	if writer.IsANSITerminal() {
 		borderColor := "#4388cc"
 		if !isDarkTheme() {
 			borderColor = "#3d5485"
@@ -144,7 +137,7 @@ func printCommand(writer io.Writer, prefix, lang, cmd string) {
 		if width > 0 && longestLen >= width-2 {
 			s = s.Width(width - 2)
 		}
-		fmt.Fprintf(writer, "\r%s%s\n", s.Render(padString(hlCode.String(), prefix)), s.UnsetBorderStyle())
+		fmt.Fprintf(w, "\r%s%s\n", s.Render(padString(hlCode.String(), prefix)), s.UnsetBorderStyle())
 	}
 }
 

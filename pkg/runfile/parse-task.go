@@ -1,6 +1,8 @@
 package runfile
 
 import (
+	"bytes"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -24,6 +26,9 @@ func (r *ParsedRunfile) ParseTaskEnv(ctx *Context, taskName string, parentEnv ma
 	for i := range task.DotEnv {
 		de := task.DotEnv[i]
 		if !filepath.IsAbs(de) {
+			if task.Metadata.RunfilePath == nil {
+				return nil, errors.WrapStr("task metadata RunfilePath is nil")
+			}
 			result := filepath.Join(filepath.Dir(*task.Metadata.RunfilePath), de)
 			de = result
 		}
@@ -47,6 +52,7 @@ func (r *ParsedRunfile) ParseTaskEnv(ctx *Context, taskName string, parentEnv ma
 
 	for _, requirement := range task.Requires {
 		if requirement != nil && requirement.Sh != nil {
+			var stderrBuf bytes.Buffer
 			cmd := CreateCommand(ctx, CmdArgs{
 				Shell:       shellAliasMap["sh"],
 				Env:         fn.ToEnviron(env),
@@ -54,11 +60,14 @@ func (r *ParsedRunfile) ParseTaskEnv(ctx *Context, taskName string, parentEnv ma
 				Cmd:         *requirement.Sh,
 				interactive: task.Interactive,
 				Stdout:      fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
-				Stderr:      fn.Must(os.OpenFile(os.DevNull, os.O_WRONLY, 0o755)),
+				Stderr:      &stderrBuf,
 			})
 
 			if err := cmd.Run(); err != nil {
-				return nil, errors.ErrTaskRequirementNotMet(*requirement.Sh, err)
+				return nil, errors.ErrTaskRequirementNotMet(
+					*requirement.Sh,
+					fmt.Errorf("%w: %s", err, stderrBuf.String()),
+				)
 			}
 		}
 	}

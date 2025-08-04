@@ -1,8 +1,6 @@
 package runfile
 
 import (
-	"fmt"
-
 	"github.com/nxtcoder17/runfile/pkg/errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 )
@@ -11,15 +9,14 @@ var shellAliasMap = map[string][]string{
 	"sh":         {"sh", "-c"},
 	"bash":       {"bash", "-c"},
 	"python":     {"python", "-c"},
-	"go":         {"go", "run", "-e"},
 	"node":       {"node", "-e"},
 	"ruby":       {"ruby", "-e"},
 	"perl":       {"perl", "-e"},
 	"php":        {"php", "-r"},
 	"rust":       {"cargo", "script", "-e"},
-	"clojure":    {"closure", "-e"},
+	"clojure":    {"clojure", "-e"},
 	"lua":        {"lua", "-e"},
-	"exlixir":    {"exlixir", "-e"},
+	"elixir":     {"elixir", "-e"},
 	"powershell": {"powershell", "-Command"},
 	"haskell":    {"runghc", "-e"},
 }
@@ -40,12 +37,12 @@ func (r *ParsedRunfile) ParseTaskShell(taskName string) (Shell, error) {
 	case string:
 		shell, ok := shellAliasMap[val]
 		if !ok {
-			return nil, fmt.Errorf("invalid shell alias, must be one of %#v", shellAliasKeys)
+			return nil, errors.ErrInvalidShellAlias(val).KV("available", shellAliasKeys)
 		}
 		return shell, nil
 	case []string:
 		return val, nil
 	default:
-		return nil, fmt.Errorf("shell must be a string or []string")
+		return nil, errors.WrapStr("shell must be a string or []string")
 	}
 }

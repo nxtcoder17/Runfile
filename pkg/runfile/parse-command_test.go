@@ -184,6 +184,18 @@ func Test_parseCommand(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "12. When both cmd and run keys are empty strings, It should fail",
+			args: args{
+				command: map[string]any{
+					"cmd": "",
+					"run": "",
+				},
+				env: map[string]string{},
+			},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	ctx := NewContext(&types.Context{

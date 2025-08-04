@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/nxtcoder17/fastlog"
+	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"github.com/nxtcoder17/runfile/pkg/types"
 	"github.com/nxtcoder17/runfile/pkg/writer"
 )
@@ -103,11 +104,6 @@ func Test_padString(t *testing.T) {
 			}
 		})
 	}
-}
-
-func Test_isTTY(t *testing.T) {
-	// This test just ensures the function doesn't panic
-	_ = isTTY()
 }
 
 func TestCreateCommand(t *testing.T) {
@@ -290,6 +286,25 @@ func TestParsedRunfile_RunTask(t *testing.T) {
 			task:    "echo",
 			wantErr: false,
 		},
+		{
+			name: "3. When both Parallel and Watch are true, It should handle gracefully",
+			runfile: &ParsedRunfile{
+				Tasks: map[string]Task{
+					"parallel-watch": {
+						Name:     "parallel-watch",
+						Parallel: true,
+						Watch: &TaskWatch{
+							Enable: fn.Ptr(true),
+						},
+						Commands: []any{
+							"echo test",
+						},
+					},
+				},
+			},
+			task:    "parallel-watch",
+			wantErr: false, // Based on the code, it doesn't seem to validate this combination
+		},
 	}
 
 	for _, tt := range tests {
@@ -467,7 +482,7 @@ func Test_printCommand(t *testing.T) {
 			var buf bytes.Buffer
 			printCommand(&buf, tt.prefix, tt.lang, tt.cmd)
 			// Just ensure something was written
-			if buf.Len() == 0 && isTTY() {
+			if buf.Len() == 0 && writer.IsANSITerminal() {
 				t.Error("printCommand() wrote nothing to buffer in TTY mode")
 			}
 		})

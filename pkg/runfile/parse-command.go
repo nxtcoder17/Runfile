@@ -2,7 +2,6 @@ package runfile
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/nxtcoder17/runfile/pkg/errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
@@ -17,7 +16,7 @@ func parseCommand(_ *Context, command any, env map[string]string) (*ParsedComman
 	case string:
 		{
 			if c == "" {
-				return nil, ferr(fmt.Errorf("empty command"))
+				return nil, ferr(errors.WrapStr("empty command"))
 			}
 
 			return &ParsedCommandJson{Command: &c, Env: env}, nil
@@ -42,7 +41,7 @@ func parseCommand(_ *Context, command any, env map[string]string) (*ParsedComman
 			case cj.Run != nil:
 				{
 					if *cj.Run == "" {
-						return nil, ferr(fmt.Errorf("empty run target"))
+						return nil, ferr(errors.WrapStr("empty run target"))
 					}
 
 					pcj.Run = cj.Run
@@ -50,13 +49,13 @@ func parseCommand(_ *Context, command any, env map[string]string) (*ParsedComman
 			case cj.Command != nil:
 				{
 					if *cj.Command == "" {
-						return nil, ferr(fmt.Errorf("empty command"))
+						return nil, ferr(errors.WrapStr("empty command"))
 					}
 					pcj.Command = cj.Command
 				}
 			default:
 				{
-					return nil, fmt.Errorf("either 'run' or 'cmd' key, must be specified when setting command in json format")
+					return nil, errors.WrapStr("either 'run' or 'cmd' key, must be specified when setting command in json format")
 				}
 			}
 
@@ -64,7 +63,7 @@ func parseCommand(_ *Context, command any, env map[string]string) (*ParsedComman
 		}
 	default:
 		{
-			return nil, ferr(fmt.Errorf("invalid command type, must be either a string or an object"))
+			return nil, ferr(errors.WrapStr("invalid command type, must be either a string or an object"))
 		}
 	}
 }

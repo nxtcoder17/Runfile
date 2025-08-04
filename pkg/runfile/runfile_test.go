@@ -281,6 +281,19 @@ func TestRunfile_resolveEnv(t *testing.T) {
 			want:    nil,
 			wantErr: true,
 		},
+		{
+			name: "7. When dotenv file has malformed content, It should return error",
+			runfile: &Runfile{
+				Filepath: filepath.Join(tmpDir, "Runfile"),
+				DotEnv: []string{func() string {
+					malformedPath := filepath.Join(tmpDir, "malformed.env")
+					os.WriteFile(malformedPath, []byte("INVALID LINE WITHOUT EQUALS\nKEY=VALUE\nANOTHER INVALID LINE"), 0644)
+					return malformedPath
+				}()},
+			},
+			want:    nil,
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
