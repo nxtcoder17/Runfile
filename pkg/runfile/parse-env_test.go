@@ -24,7 +24,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 
 	tests := []test{
 		{
-			name: "1. must fail [when] required env is not provided",
+			name: "1. When required env is not provided, It should fail",
 			args: args{
 				envVars: types.EnvExpr{
 					"hello": map[string]any{
@@ -37,7 +37,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "2. must pass [when] required env is provided",
+			name: "2. When required env is provided, It should pass",
 			args: args{
 				envVars: types.EnvExpr{
 					"hello": map[string]any{
@@ -54,7 +54,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "3. must fail [when] default not provided",
+			name: "3. When required env has no default and is not provided, It should fail",
 			args: args{
 				envVars: types.EnvExpr{
 					"hello": map[string]any{
@@ -65,7 +65,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "4. must pass [when] default value is provided",
+			name: "4. When default value is provided, It should use the default",
 			args: args{
 				envVars: types.EnvExpr{
 					"hello": map[string]any{
@@ -80,7 +80,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "5. must fail [when] default sh command exits with non-zero",
+			name: "5. When default sh command exits with non-zero, It should fail",
 			args: args{
 				envVars: types.EnvExpr{
 					"hello": map[string]any{
@@ -93,7 +93,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "6. must pass [when] default sh command exits with zero",
+			name: "6. When default sh command exits with zero, It should return the command output",
 			args: args{
 				envVars: types.EnvExpr{
 					"hello": map[string]any{
@@ -112,7 +112,7 @@ func Test_ParseEnvExprs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParseEnvVars(types.Context{Context: context.TODO(), Logger: fastlog.New()}, tt.args.envVars, tt.args.testingEnv)
+			got, err := ParseEnvVars(&types.Context{Context: context.TODO(), Logger: fastlog.New()}, tt.args.envVars, tt.args.testingEnv)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Parsetypes.EnvExprs():> got = %v, error = %v, wantErr %v", got, err, tt.wantErr)
 				return

@@ -8,7 +8,7 @@ import (
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 )
 
-func parseCommand(ctx *Context, command any, env map[string]string) (*ParsedCommandJson, error) {
+func parseCommand(_ *Context, command any, env map[string]string) (*ParsedCommandJson, error) {
 	ferr := func(err error) error {
 		return errors.ErrTaskInvalidCommand(command, err)
 	}
@@ -16,6 +16,10 @@ func parseCommand(ctx *Context, command any, env map[string]string) (*ParsedComm
 	switch c := command.(type) {
 	case string:
 		{
+			if c == "" {
+				return nil, ferr(fmt.Errorf("empty command"))
+			}
+
 			return &ParsedCommandJson{Command: &c, Env: env}, nil
 		}
 	case map[string]any:
@@ -37,10 +41,17 @@ func parseCommand(ctx *Context, command any, env map[string]string) (*ParsedComm
 			switch {
 			case cj.Run != nil:
 				{
+					if *cj.Run == "" {
+						return nil, ferr(fmt.Errorf("empty run target"))
+					}
+
 					pcj.Run = cj.Run
 				}
 			case cj.Command != nil:
 				{
+					if *cj.Command == "" {
+						return nil, ferr(fmt.Errorf("empty command"))
+					}
 					pcj.Command = cj.Command
 				}
 			default:

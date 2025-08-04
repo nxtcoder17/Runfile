@@ -82,7 +82,7 @@ func (rf *Runfile) resolveIncludedTasks(ctx *types.Context) (map[string]Task, er
 		for name, target := range r.Tasks {
 			if v.Dir != "" {
 				if target.Dir != nil {
-					target.Dir = fn.New(filepath.Join(v.Dir, *target.Dir))
+					target.Dir = fn.Ptr(filepath.Join(v.Dir, *target.Dir))
 				}
 			}
 

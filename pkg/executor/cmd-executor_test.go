@@ -48,7 +48,7 @@ func Test_Exectuor_Start(t *testing.T) {
 	}{
 		// TODO: add your tests
 		{
-			name: "1. with single command",
+			name: "1. When executing single command, It should output correctly",
 			commands: func(stdout io.Writer) []CommandGroup {
 				return []CommandGroup{
 					{
@@ -64,7 +64,7 @@ func Test_Exectuor_Start(t *testing.T) {
 			},
 		},
 		{
-			name: "2. with multiple commands",
+			name: "2. When executing multiple commands in a group, It should execute sequentially",
 			commands: func(stdout io.Writer) []CommandGroup {
 				return []CommandGroup{
 					{
@@ -82,7 +82,7 @@ func Test_Exectuor_Start(t *testing.T) {
 			},
 		},
 		{
-			name: "3. with multiple command groups",
+			name: "3. When executing multiple command groups, It should execute groups in order",
 			commands: func(stdout io.Writer) []CommandGroup {
 				return []CommandGroup{
 					{
@@ -109,7 +109,7 @@ func Test_Exectuor_Start(t *testing.T) {
 		},
 
 		{
-			name: "4. with multiple command groups (sequential)",
+			name: "4. When executing groups sequentially with delays, It should wait for each group",
 			commands: func(stdout io.Writer) []CommandGroup {
 				return []CommandGroup{
 					{
@@ -136,7 +136,7 @@ func Test_Exectuor_Start(t *testing.T) {
 		},
 
 		{
-			name: "5. with multiple command groups (parallel)",
+			name: "5. When executing groups in parallel, It should run concurrently",
 			commands: func(stdout io.Writer) []CommandGroup {
 				return []CommandGroup{
 					{
