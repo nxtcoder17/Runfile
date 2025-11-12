@@ -75,6 +75,11 @@ func (e *Error) SlogAttrs() []any {
 	return result
 }
 
+func (e *Error) Wrap(err error) *Error {
+	e.err = errors.Join(e.err, err)
+	return e
+}
+
 func WrapErr(err error) *Error {
 	return &Error{
 		err: err,
@@ -96,3 +101,7 @@ func WrapStr(v string) *Error {
 func New(msg string) *Error {
 	return WrapStr(msg)
 }
+
+// func Wrap(msg string, err ...error) *Error {
+// 	return errors.Join(errors.New(msg), errors.Join(err...))
+// }

@@ -95,24 +95,26 @@ func main() {
 				return
 			}
 
-			runfilePath, err := locateRunfile(c)
-			if err != nil {
-				slog.Error("locating runfile", "err", err)
-				panic(err)
-			}
+			// runfilePath, err := locateRunfile(c)
+			// if err != nil {
+			// 	slog.Error("locating runfile", "err", err)
+			// 	panic(err)
+			// }
 
-			generateShellCompletion(ctx, c.Root().Writer, runfilePath)
+			// generateShellCompletion(ctx, c.Root().Writer, runfilePath)
 		},
 
 		Commands: []*cli.Command{
 			{
-				Name:    "shell:completion",
-				Usage:   "<bash|zsh|fish|ps>",
-				Suggest: true,
+				Name:                  "shell:completion",
+				Usage:                 "[shell]",
+				EnableShellCompletion: false,
 				Action: func(ctx context.Context, c *cli.Command) error {
-					fmt.Printf("args: (%d)\n", c.NArg())
-					if c.NArg() != 1 {
-						return fmt.Errorf("needs argument one of [bash,zsh,fish,ps]")
+					if c.NArg() == 0 {
+						for _, shell := range []string{"fish", "bash", "zsh", "powershell"} {
+							fmt.Fprintf(c.Writer, "%s\n", shell)
+						}
+						return nil
 					}
 
 					switch c.Args().First() {
@@ -139,12 +141,12 @@ func main() {
 
 			showList := c.Bool("list")
 			if showList {
-				runfilePath, err := locateRunfile(c)
-				if err != nil {
-					slog.Error("locating runfile, got", "err", err)
-					return err
-				}
-				return generateShellCompletion(ctx, c.Root().Writer, runfilePath)
+				// runfilePath, err := locateRunfile(c)
+				// if err != nil {
+				// 	slog.Error("locating runfile, got", "err", err)
+				// 	return err
+				// }
+				// return generateShellCompletion(ctx, c.Root().Writer, runfilePath)
 			}
 
 			if c.NArg() == 0 {
@@ -185,13 +187,7 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			logger := fastlog.New(fastlog.Options{
-				Format:        fastlog.ConsoleFormat,
-				EnableColors:  true,
-				ShowCaller:    debug,
-				ShowTimestamp: false,
-				ShowDebugLogs: debug,
-			})
+			logger := fastlog.New(fastlog.Console(), fastlog.ShowDebugLogs(debug), fastlog.WithoutTimestamp())
 
 			runfilePath, err := locateRunfile(c)
 			if err != nil {
@@ -199,23 +195,12 @@ func main() {
 				return err
 			}
 
-			rctx := runfile.NewContext(ctx, logger)
-
-			rf, err := runfile.ParseFromFile(rctx, runfilePath)
-			if err != nil {
-				slog.Error("parsing runfile, got", "err", err)
-				panic(err)
-			}
-
-			if err := rf.Run(rctx, args, runfile.RunOption{
-				ExecuteInParallel: parallel,
-				Watch:             watch,
-				Debug:             debug,
-				KVs:               kv,
-			}); err != nil {
+			if err := runfile.RunTask(ctx, runfilePath, args[0]); err != nil {
+				logger.Error("ERRORED", "err", err)
 				if err2, ok := err.(*errors.Error); ok {
 					logger.Error(err2.Error(), err2.SlogAttrs()...)
 				}
+				return err
 			}
 
 			return nil

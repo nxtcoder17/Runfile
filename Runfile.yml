@@ -16,8 +16,7 @@ tasks:
   example:
     dir: ./examples
     cmd: 
-      - |+
-        run cook clean
+      - echo "hello world"
 
   test:old:
     cmd:

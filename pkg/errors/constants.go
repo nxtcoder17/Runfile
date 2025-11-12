@@ -67,3 +67,7 @@ func ErrTaskInvalidCommand(command any, err error) *Error {
 func ErrInvalidShellAlias(alias string) *Error {
 	return WrapStr("invalid shell alias").KV("alias", alias)
 }
+
+func ErrCircularDependency(taskName string) *Error {
+	return WrapStr("circular dependency detected").KV("task", taskName)
+}
