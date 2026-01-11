@@ -3,5 +3,6 @@ nixpkgs:
 
 packages:
   - go
+
   - pre-commit
   - gotestfmt

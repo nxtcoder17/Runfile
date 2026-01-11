@@ -40,6 +40,8 @@ type TaskSpec struct {
 	// Parallel allows you to run commands
 	Parallel bool `yaml:"parallel"`
 
+	Silent bool `yaml:"silent,omitempty"`
+
 	// Commands can take multiple forms
 	//   - simple string like `echo hello world`
 	//   - a json object with key
@@ -57,4 +59,10 @@ type TaskWatchSpec struct {
 	SSE              *struct {
 		Addr string `yaml:"addr"`
 	} `yaml:"sse,omitempty"`
+}
+
+type CommandObject struct {
+	Run     *string        `json:"run" yaml:"run"`
+	Command *string        `json:"cmd" yaml:"cmd"`
+	Env     map[string]any `json:"env" yaml:"env"`
 }

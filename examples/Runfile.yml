@@ -42,35 +42,32 @@ tasks:
       # - echo "k5 is $k5"
 
   clean:
-    name: clean
     # shell: ["python", "-c"]
     shell: python
     # dotenv:
     #   - ../.secrets/env
     cmd:
       - run: laundry
-        # vars:
-        #   k1: v1
-      - |+
-        import secrets
-        import os
-        import time
-        # print("key_id from env: ", os.environ['key_id'])
-        # time.sleep(2)
-        print("hello from clean")
-        print(secrets.token_hex(32))
+        env:
+          k4: "HELLO"
+      # - |+
+      #   import secrets
+      #   import os
+      #   import time
+      #   # print("key_id from env: ", os.environ['key_id'])
+      #   # time.sleep(2)
+      #   print("hello from clean")
+      #   print(secrets.token_hex(32))
 
   laundry:
     name: laundry
     shell: ["node", "-e"]
+    silent: true
     env:
       k4:
-        default:
-          sh: |+
-            echo "1234"
-            # console.log('1234' == '23344')
+        sh: echo "1234"
     cmd: 
-      - run: cook
+      # - run: cook
       - console.log(process.env.k4)
       - console.log("hello from laundry")
 

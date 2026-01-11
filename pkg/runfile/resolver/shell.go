@@ -3,7 +3,7 @@ package resolver
 import (
 	"fmt"
 
-	"github.com/nxtcoder17/runfile/pkg/errors"
+	"github.com/nxtcoder17/go.errors"
 )
 
 var shellAliasMap = map[string][]string{

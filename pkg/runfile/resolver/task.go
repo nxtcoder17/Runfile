@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,7 +17,7 @@ import (
 	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fwatcher/pkg/executor"
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
-	"github.com/nxtcoder17/runfile/pkg/errors"
+	"github.com/nxtcoder17/go.errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"github.com/nxtcoder17/runfile/pkg/runfile/spec"
 	"github.com/nxtcoder17/runfile/pkg/writer"
@@ -40,11 +41,13 @@ type ResolvedTask struct {
 
 	Dir   string
 	Shell []string
-	Env   map[string]string
+	Env   map[string]any
 
 	Parallel    bool
 	Interactive bool
-	Watch       *spec.TaskWatchSpec
+	Silent      bool
+
+	Watch *spec.TaskWatchSpec
 
 	Commands []*Command
 }
@@ -52,19 +55,11 @@ type ResolvedTask struct {
 func (r *Resolver) GetTask(name string) (*ResolvedTask, error) {
 	task, ok := r.Tasks[name]
 	if !ok {
-		return nil, errors.New("Task Not Found").KV("task", name, "tasks", r.Tasks)
+		return nil, errors.New("Task Not Found").KV("task", name, "all-tasks", fn.MapKeys(r.Tasks))
 	}
 
 	shell, err := ParseShell(task.Shell)
 	if err != nil {
-		return nil, err
-	}
-
-	envStore := fn.MapMerge(r.Env)
-	if err := parseDotEnvFilesInto(envStore, task.DotEnv); err != nil {
-		return nil, err
-	}
-	if err := parseEnvInto(context.TODO(), envStore, task.Env); err != nil {
 		return nil, err
 	}
 
@@ -85,10 +80,11 @@ func (r *Resolver) GetTask(name string) (*ResolvedTask, error) {
 		Name:        name,
 		Dir:         task.Dir,
 		Shell:       shell,
-		Env:         envStore,
+		Env:         task.Env,
 		Commands:    commands,
 		Parallel:    task.Parallel,
 		Interactive: task.Interactive,
+		Silent:      task.Silent,
 		Watch:       task.Watch,
 	}, nil
 }
@@ -172,11 +168,7 @@ func parseCommands(commands []any) ([]*Command, error) {
 			}
 		case map[string]any:
 			{
-				var jsonCmd struct {
-					Run     *string        `json:"run"`
-					Command *string        `json:"cmd"`
-					Env     map[string]any `json:"env"`
-				}
+				var jsonCmd spec.CommandObject
 
 				b, err := json.Marshal(c)
 				if err != nil {
@@ -187,9 +179,7 @@ func parseCommands(commands []any) ([]*Command, error) {
 					return nil, errors.New("failed to unmarshal command into json command").Wrap(err).KV("b", b)
 				}
 
-				cmd := &Command{
-					Env: jsonCmd.Env,
-				}
+				cmd := &Command{Env: jsonCmd.Env}
 
 				switch {
 				case jsonCmd.Run != nil:
@@ -210,7 +200,7 @@ func parseCommands(commands []any) ([]*Command, error) {
 					}
 				default:
 					{
-						return nil, errors.WrapStr("either 'run' or 'cmd' key, must be specified when setting command in json format")
+						return nil, errors.New("either 'run' or 'cmd' key, must be specified when setting command in json format")
 					}
 				}
 				result = append(result, cmd)
@@ -255,44 +245,65 @@ func CreateCommand(ctx context.Context, args CmdArgs) *exec.Cmd {
 	return c
 }
 
+var (
+	darkThemeOnce   sync.Once
+	darkThemeResult bool
+)
+
 func isDarkTheme() bool {
-	return termenv.NewOutput(os.Stdout).HasDarkBackground()
+	darkThemeOnce.Do(func() {
+		darkThemeResult = termenv.NewOutput(os.Stdout).HasDarkBackground()
+	})
+	return darkThemeResult
 }
 
-func printCommand(w io.Writer, prefix, lang, cmd string) {
-	if writer.IsANSITerminal() {
-		borderColor := "#4388cc"
-		if !isDarkTheme() {
-			borderColor = "#3d5485"
-		}
-
-		s := lipgloss.NewStyle().BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1).Border(lipgloss.RoundedBorder(), true, true, true, true)
-
-		width := 0
-
-		if term.IsTerminal(0) {
-			width, _, _ = term.GetSize(0)
-		}
-
-		hlCode := new(bytes.Buffer)
-		// choose colorschemes from `https://swapoff.org/chroma/playground/`
-		colorscheme := "catppuccin-macchiato"
-		if !isDarkTheme() {
-			colorscheme = "xcode"
-		}
-		_ = colorscheme
-
-		longestLen := longestLineLen(cmd) + len(prefix) + 2 // 2 for spaces around prefix
-
-		cmdStr := strings.TrimSpace(cmd)
-
-		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
-
-		if width > 0 && longestLen >= width-2 {
-			s = s.Width(width - 2)
-		}
-		fmt.Fprintf(w, "\r%s%s\n", s.Render(padString(hlCode.String(), prefix)), s.UnsetBorderStyle())
+func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
+	borderColor := "#4388cc"
+	if !isDarkTheme() {
+		borderColor = "#3d5485"
 	}
+
+	myBorder := lipgloss.Border{
+		Top:         "-+",
+		Bottom:      "-+",
+		Left:        "|",
+		Right:       "|",
+		TopLeft:     "+",
+		TopRight:    "+",
+		BottomLeft:  "+",
+		BottomRight: "+",
+	}
+
+	s := lipgloss.NewStyle().Border(myBorder).BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1)
+	defer s.UnsetBorderStyle()
+	defer s.UnsetPadding()
+
+	width := 0
+
+	if term.IsTerminal(0) {
+		width, _, _ = term.GetSize(0)
+	}
+
+	hlCode := new(bytes.Buffer)
+	// choose colorschemes from `https://swapoff.org/chroma/playground/`
+	colorscheme := "catppuccin-macchiato"
+	if !isDarkTheme() {
+		colorscheme = "xcode"
+	}
+
+	longestLen := longestLineLen(cmd) + len(prefix) + 2 // INFO: 2 for spaces around prefix
+
+	cmdStr := strings.TrimSpace(cmd)
+
+	quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
+
+	if width > 0 && longestLen >= width-2 {
+		s = s.Width(width - 2)
+	}
+
+	// w.Mu.Lock()
+	// defer w.Mu.Unlock()
+	fmt.Fprintf(w, "%s%s\n", padString(s.Render(hlCode.String()), prefix), s.UnsetBorderStyle())
 }
 
 func longestLineLen(str string) int {
@@ -307,30 +318,47 @@ func longestLineLen(str string) int {
 	return l
 }
 
-func padString(str string, padWith string) string {
+func padString(str string, withPrefix string) string {
 	sp := strings.Split(str, "\n")
 	for i := range sp {
 		if i == 0 {
-			sp[i] = fmt.Sprintf("%s | %s", padWith, sp[i])
+			sp[i] = fmt.Sprintf("%s %s", writer.GetStyledPrefix(withPrefix), sp[i])
 			continue
 		}
-		sp[i] = fmt.Sprintf("%s | %s", strings.Repeat(" ", len(padWith)), sp[i])
+		sp[i] = fmt.Sprintf("%s %s", strings.Repeat(" ", len(withPrefix)+2), sp[i])
 	}
 
 	return strings.Join(sp, "\n")
 }
 
 type createCommandGroupArgs struct {
-	Stdout *writer.LogWriter
-	Stderr *writer.LogWriter
-	Env    map[string]string
+	Stdout    *writer.LogWriter
+	Stderr    *writer.LogWriter
+	Env       map[string]string
+	Silent    bool
+	TaskTrail []string
 }
 
 func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGroupArgs) ([]executor.CommandGroup, error) {
 	var groups []executor.CommandGroup
 
+	taskTrail := make([]string, 0, len(args.TaskTrail)+1)
+	for i := range args.TaskTrail {
+		taskTrail = append(taskTrail, args.TaskTrail[i])
+	}
+	taskTrail = append(taskTrail, task.Name)
+
+	slog.Debug("creating command groups", "task.name", task.Name, "task.trail", taskTrail)
+
 	for _, cmd := range task.Commands {
-		envStore := fn.MapMerge(r.Env, task.Env)
+		// INFO: env var overrides with args.Env takes priority
+		envStore := fn.MapMerge(r.Env, args.Env)
+
+		if task.Env != nil {
+			if err := parseEnvInto(context.TODO(), envStore, task.Env); err != nil {
+				return nil, err
+			}
+		}
 
 		if cmd.Env != nil {
 			if err := parseEnvInto(context.TODO(), envStore, cmd.Env); err != nil {
@@ -345,9 +373,11 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 			}
 
 			rtCommands, err := r.createCommandGroups(rt, createCommandGroupArgs{
-				Stdout: args.Stdout,
-				Stderr: args.Stderr,
-				Env:    envStore,
+				Stdout:    args.Stdout,
+				Stderr:    args.Stderr,
+				Env:       envStore,
+				Silent:    task.Silent || rt.Silent,
+				TaskTrail: taskTrail,
 			})
 			if err != nil {
 				return nil, err
@@ -364,12 +394,17 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 			}
 
 			groups = append(groups, cg)
-			return groups, nil
+			continue
 		}
+
+		logPrefix := strings.Join(taskTrail, " ≫ ")
 
 		cg := executor.CommandGroup{
 			Parallel: task.Parallel,
 			PreExecCommand: func(cmd *exec.Cmd) {
+				if task.Silent {
+					return
+				}
 				str := strings.TrimSpace(cmd.String())
 				sp := strings.SplitN(str, " ", len(task.Shell)+1)
 
@@ -377,7 +412,7 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 				if len(task.Shell) > 0 {
 					lang = task.Shell[0]
 				}
-				printCommand(args.Stderr, task.Name, lang, sp[2])
+				printCommand(args.Stderr, logPrefix, lang, sp[2])
 			},
 
 			Commands: []func(c context.Context) *exec.Cmd{
@@ -388,8 +423,8 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 						Cmd:           cmd.Text,
 						WorkingDir:    task.Dir,
 						isInteractive: task.Interactive,
-						Stdout:        args.Stdout.WithPrefix(task.Name),
-						Stderr:        args.Stderr.WithPrefix(task.Name),
+						Stdout:        args.Stdout.WithPrefix(logPrefix),
+						Stderr:        args.Stderr.WithPrefix(logPrefix),
 					})
 				},
 			},
@@ -398,5 +433,6 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 		groups = append(groups, cg)
 	}
 
+	slog.Debug("created command groups", "len", len(groups))
 	return groups, nil
 }

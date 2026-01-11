@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
-	"github.com/nxtcoder17/runfile/pkg/errors"
+	"github.com/nxtcoder17/go.errors"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 )
 
@@ -53,20 +53,24 @@ func parseEnvInto(ctx context.Context, envStore map[string]string, envMap map[st
 	lazyEvalMap := make(map[string]*exec.Cmd)
 
 	for k, v := range envMap {
+		// INFO: Skip if key already exists (in OS env or envStore)
+		if _, ok := lookupEnv(k); ok {
+			continue
+		}
+
 		switch value := v.(type) {
 		case string:
 			envStore[k] = value
 		case map[string]any:
 			{
+
 				if requiredVal, ok := value["required"]; ok {
 					isRequired, ok := requiredVal.(bool)
 					if !ok {
 						return errors.New("ENV-EXPRESSION: value field `required` must be a boolean").KV("env.key", k, "env.value", value)
 					}
 					if isRequired {
-						if _, ok := lookupEnv(k); !ok {
-							return errors.New(fmt.Sprintf("ENV-EXPRESSION: env var '%s' is required, it must be provided", k)).KV("env.key", k, "env.value", value)
-						}
+						return errors.New(fmt.Sprintf("ENV-EXPRESSION: env var '%s' is required, it must be provided", k)).KV("env.key", k, "env.value", value)
 					}
 				}
 
@@ -82,6 +86,8 @@ func parseEnvInto(ctx context.Context, envStore map[string]string, envMap map[st
 					}
 				}
 			}
+		default:
+			envStore[k] = fmt.Sprint(v)
 		}
 	}
 

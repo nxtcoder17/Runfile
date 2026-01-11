@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/nxtcoder17/fastlog"
-	"github.com/nxtcoder17/runfile/pkg/errors"
+	"github.com/nxtcoder17/go.errors"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/urfave/cli/v3"
 )
@@ -131,6 +131,26 @@ func main() {
 					return nil
 				},
 			},
+			{
+				Name:                  "init",
+				EnableShellCompletion: false,
+				Action: func(ctx context.Context, c *cli.Command) error {
+					dir, err := os.Getwd()
+					if err != nil {
+						return err
+					}
+
+					_, err = getRunfilePath(dir)
+					if err == nil {
+						slog.Info("Runfile already exists in current directory")
+						return nil
+					}
+
+					// TODO: implement init command to create a sample Runfile
+					slog.Info("init command not yet implemented")
+					return nil
+				},
+			},
 		},
 
 		Suggest: true,
@@ -188,6 +208,7 @@ func main() {
 			}
 
 			logger := fastlog.New(fastlog.Console(), fastlog.ShowDebugLogs(debug), fastlog.WithoutTimestamp())
+			slog.SetDefault(logger.Slog())
 
 			runfilePath, err := locateRunfile(c)
 			if err != nil {
@@ -195,11 +216,7 @@ func main() {
 				return err
 			}
 
-			if err := runfile.RunTask(ctx, runfilePath, args[0]); err != nil {
-				logger.Error("ERRORED", "err", err)
-				if err2, ok := err.(*errors.Error); ok {
-					logger.Error(err2.Error(), err2.SlogAttrs()...)
-				}
+			if err := runfile.RunTask(ctx, runfilePath, args[0], kv); err != nil {
 				return err
 			}
 
@@ -216,8 +233,40 @@ func main() {
 	}()
 
 	if err := cmd.Run(ctx, os.Args); err != nil {
-		slog.Error("while running cmd, got", "err", err)
+		if err2, ok := err.(*errors.Error); ok {
+			slog.Error("failed to run task", err2.AsKeyValues()...)
+			return
+		}
+		slog.Error("failed to run task", "err", err)
 	}
+}
+
+var ErrRunfileNotFound = fmt.Errorf("failed to locate your nearest Runfile")
+
+func getRunfilePath(dir string) (string, error) {
+	runfileNames := []string{
+		"Runfile",
+		"Runfile.yml",
+		"Runfile.yaml",
+	}
+
+	for _, f := range runfileNames {
+		stat, err := os.Stat(filepath.Join(dir, f))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return "", err
+			}
+			continue
+		}
+
+		if stat.IsDir() {
+			return "", fmt.Errorf("Runfile.yml is a directory")
+		}
+
+		return filepath.Join(dir, f), nil
+	}
+
+	return "", ErrRunfileNotFound
 }
 
 func locateRunfile(c *cli.Command) (string, error) {
@@ -232,28 +281,17 @@ func locateRunfile(c *cli.Command) (string, error) {
 
 		oldDir := ""
 
-		runfileNames := []string{
-			"Runfile",
-			"Runfile.yml",
-			"Runfile.yaml",
-		}
-
 		for oldDir != dir {
-			for _, fn := range runfileNames {
-				if _, err := os.Stat(filepath.Join(dir, fn)); err != nil {
-					if !os.IsNotExist(err) {
-						return "", err
-					}
-					continue
-				}
-
-				return filepath.Join(dir, fn), nil
+			fp, err := getRunfilePath(dir)
+			if err != nil && !errors.Is(err, ErrRunfileNotFound) {
+				oldDir = dir
+				dir = filepath.Dir(dir)
+				continue
 			}
 
-			oldDir = dir
-			dir = filepath.Dir(dir)
+			return fp, nil
 		}
 
-		return "", fmt.Errorf("failed to locate your nearest Runfile")
+		return "", ErrRunfileNotFound
 	}
 }

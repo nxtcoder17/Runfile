@@ -12,13 +12,11 @@ const (
 )
 
 func GetStyledPrefix(prefix string) string {
-	return fmt.Sprintf("%s[%s]%s ", StyleFgGreen, prefix, StyleReset)
-	// return fmt.Sprintf("%s%s |%s ", Green, prefix, Reset)
+	return fmt.Sprintf("%s[%s]%s", StyleFgGreen, prefix, StyleReset)
 }
 
 func GetDimStyledPrefix(prefix string) string {
-	return fmt.Sprintf("%s[%s]%s ", "\033[3;36m", prefix, StyleReset)
-	// return fmt.Sprintf("%s%s |%s ", Green, prefix, Reset)
+	return fmt.Sprintf("%s[%s]%s", "\033[3;36m", prefix, StyleReset)
 }
 
 func GetDimmedText(text []byte) string {
@@ -31,6 +29,6 @@ func GetCommandHighlight(text []byte) string {
 }
 
 func GetErrorStyledPrefix(prefix string) string {
-	return fmt.Sprintf("%s[%s]%s ", StyleFgRed, prefix, StyleReset)
+	return fmt.Sprintf("%s[%s]%s", StyleFgRed, prefix, StyleReset)
 	// return fmt.Sprintf("%s%s |%s ", Green, prefix, Reset)
 }

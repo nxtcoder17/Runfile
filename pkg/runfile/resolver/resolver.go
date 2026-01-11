@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/nxtcoder17/runfile/pkg/errors"
+	"github.com/nxtcoder17/go.errors"
 	"github.com/nxtcoder17/runfile/pkg/runfile/spec"
 	"gopkg.in/yaml.v3"
 )
