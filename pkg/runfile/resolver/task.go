@@ -15,9 +15,9 @@ import (
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
-	"github.com/nxtcoder17/fwatcher/pkg/executor"
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
 	"github.com/nxtcoder17/go.errors"
+	"github.com/nxtcoder17/runfile/pkg/executor"
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"github.com/nxtcoder17/runfile/pkg/runfile/spec"
 	"github.com/nxtcoder17/runfile/pkg/writer"
@@ -97,7 +97,7 @@ func (r *Resolver) RunTask(ctx context.Context, name string) error {
 
 	lw := &writer.LogWriter{Writer: os.Stderr}
 
-	commandGroups, err := r.createCommandGroups(rt, createCommandGroupArgs{
+	steps, err := r.createSteps(rt, createCommandGroupArgs{
 		Stdout: lw,
 		Stderr: lw,
 	})
@@ -105,16 +105,12 @@ func (r *Resolver) RunTask(ctx context.Context, name string) error {
 		return err
 	}
 
-	ex := executor.NewCmdExecutor(ctx, executor.CmdExecutorArgs{
-		Interactive: rt.Interactive,
-		Commands:    commandGroups,
-		Parallel:    rt.Parallel,
-	})
+	pipeline := executor.NewPipeline(slog.Default(), steps)
 
 	notWatching := rt.Watch == nil || rt.Watch.Enabled == false
 
 	if notWatching {
-		return ex.Start()
+		return pipeline.Start(ctx)
 	}
 
 	var wg sync.WaitGroup
@@ -139,16 +135,49 @@ func (r *Resolver) RunTask(ctx context.Context, name string) error {
 		watch.Close()
 	}()
 
-	executors := []executor.Executor{ex}
+	// executors := []executor.Executor{pipeline}
+	//
+	// if rt.Watch.SSE != nil && rt.Watch.SSE.Addr != "" {
+	// 	executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: rt.Watch.SSE.Addr}))
+	// }
 
-	if rt.Watch.SSE != nil && rt.Watch.SSE.Addr != "" {
-		executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: rt.Watch.SSE.Addr}))
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := pipeline.Start(ctx); err != nil {
+			slog.Error("starting command", "err", err)
+		}
+		slog.Debug("final executor start finished")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-ctx.Done()
+		pipeline.Stop()
+		slog.Debug("2. context cancelled")
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		watch.Watch(ctx)
+		slog.Debug("3. watcher closed")
+	}()
+
+	pipeline.Start(ctx)
+
+	counter := 0
+	for ev := range watch.GetEvents() {
+		slog.Debug("received", "event", ev)
+		counter += 1
+		slog.Info(fmt.Sprintf("[RELOADING (%d)] due changes in %s", counter, ev.Name))
 	}
 
-	if err := watch.WatchAndExecute(ctx, executors); err != nil {
-		return err
-	}
-
+	// if err := watch.WatchAndExecute(ctx, executors); err != nil {
+	// 	return err
+	// }
+	//
 	wg.Wait()
 	return nil
 }
@@ -291,7 +320,8 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 		colorscheme = "xcode"
 	}
 
-	longestLen := longestLineLen(cmd) + len(prefix) + 2 // INFO: 2 for spaces around prefix
+	// INFO: 2 for spaces around prefix
+	longestLen := longestLineLen(cmd) + len(prefix) + 2
 
 	cmdStr := strings.TrimSpace(cmd)
 
@@ -303,7 +333,7 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 
 	// w.Mu.Lock()
 	// defer w.Mu.Unlock()
-	fmt.Fprintf(w, "%s%s\n", padString(s.Render(hlCode.String()), prefix), s.UnsetBorderStyle())
+	fmt.Fprintf(w, "\r\033[K%s%s\n", padString(s.Render(hlCode.String()), prefix), s.UnsetBorderStyle())
 }
 
 func longestLineLen(str string) int {
@@ -339,8 +369,8 @@ type createCommandGroupArgs struct {
 	TaskTrail []string
 }
 
-func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGroupArgs) ([]executor.CommandGroup, error) {
-	var groups []executor.CommandGroup
+func (r *Resolver) createSteps(task *ResolvedTask, args createCommandGroupArgs) ([]executor.Step, error) {
+	var steps []executor.Step
 
 	taskTrail := make([]string, 0, len(args.TaskTrail)+1)
 	for i := range args.TaskTrail {
@@ -372,7 +402,7 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 				return nil, err
 			}
 
-			rtCommands, err := r.createCommandGroups(rt, createCommandGroupArgs{
+			substeps, err := r.createSteps(rt, createCommandGroupArgs{
 				Stdout:    args.Stdout,
 				Stderr:    args.Stderr,
 				Env:       envStore,
@@ -383,56 +413,51 @@ func (r *Resolver) createCommandGroups(task *ResolvedTask, args createCommandGro
 				return nil, err
 			}
 
-			cg := executor.CommandGroup{
-				Groups:   rtCommands,
+			steps = append(steps, executor.Step{
+				SubSteps: substeps,
 				Parallel: rt.Parallel,
-				PreExecCommand: func(c *exec.Cmd) {
-					str := c.String()
-					sp := strings.SplitN(str, " ", 3)
-					args.Stderr.WithDimmedPrefix(cmd.Text).Write([]byte(sp[2]))
-				},
-			}
-
-			groups = append(groups, cg)
+			})
 			continue
 		}
 
 		logPrefix := strings.Join(taskTrail, " ≫ ")
 
-		cg := executor.CommandGroup{
-			Parallel: task.Parallel,
-			PreExecCommand: func(cmd *exec.Cmd) {
-				if task.Silent {
-					return
-				}
-				str := strings.TrimSpace(cmd.String())
-				sp := strings.SplitN(str, " ", len(task.Shell)+1)
+		step := executor.Step{Parallel: task.Parallel}
 
-				lang := "bash"
-				if len(task.Shell) > 0 {
-					lang = task.Shell[0]
-				}
-				printCommand(args.Stderr, logPrefix, lang, sp[2])
-			},
-
-			Commands: []func(c context.Context) *exec.Cmd{
-				func(c context.Context) *exec.Cmd {
-					return CreateCommand(c, CmdArgs{
-						Shell:         task.Shell,
-						Env:           fn.ToEnviron(envStore),
-						Cmd:           cmd.Text,
-						WorkingDir:    task.Dir,
-						isInteractive: task.Interactive,
-						Stdout:        args.Stdout.WithPrefix(logPrefix),
-						Stderr:        args.Stderr.WithPrefix(logPrefix),
-					})
-				},
-			},
+		cmdHandler := func(c context.Context) *exec.Cmd {
+			return CreateCommand(c, CmdArgs{
+				Shell:      task.Shell,
+				Env:        fn.ToEnviron(envStore),
+				Cmd:        cmd.Text,
+				WorkingDir: task.Dir,
+				Stdout:     args.Stdout.WithPrefix(logPrefix),
+				Stderr:     args.Stderr.WithPrefix(logPrefix),
+			})
 		}
 
-		groups = append(groups, cg)
+		preHook := func(c context.Context) error {
+			if task.Silent || task.Interactive {
+				return nil
+			}
+			str := strings.TrimSpace(cmd.Text)
+
+			lang := "bash"
+			if len(task.Shell) > 0 {
+				lang = task.Shell[0]
+			}
+			printCommand(args.Stderr, logPrefix, lang, str)
+			return nil
+		}
+
+		if task.Interactive {
+			step.Commands = append(step.Commands, executor.NewInteractiveShellCommand(cmdHandler).AddPreHook(preHook))
+		} else {
+			step.Commands = append(step.Commands, executor.NewShellCommand(cmdHandler).AddPreHook(preHook))
+		}
+
+		steps = append(steps, step)
 	}
 
-	slog.Debug("created command groups", "len", len(groups))
-	return groups, nil
+	slog.Debug("created command groups", "len", len(steps))
+	return steps, nil
 }

@@ -18,10 +18,6 @@ tasks:
     cmd: 
       - echo "hello world"
 
-  test:old:
-    cmd:
-      - go test -json ./pkg/runfile | gotestfmt
-
   test:
     env:
       pattern:
@@ -29,7 +25,6 @@ tasks:
       only_failing:
         default: false
     watch:
-      enable: true
       dir:
         - ./parser
       onlySuffixes:
@@ -42,8 +37,11 @@ tasks:
         testfmt_args=""
         [ "$only_failing" = "true" ] && testfmt_args="--hide successful-tests"
 
-        go test -json ./pkg/runfile/... $pattern_args | gotestfmt $testfmt_args
+        go test -json ./pkg/runfile/resolver/... $pattern_args | gotestfmt $testfmt_args
+        go test -json ./pkg/executor/... $pattern_args | gotestfmt $testfmt_args
 
   test:only-failing:
     cmd:
-      - go test -json ./pkg/runfile | gotestfmt --hide successful-tests
+      - go test -json ./pkg/runfile/resolver/... | gotestfmt --hide successful-tests
+        go test -json ./pkg/executor/... $pattern_args | gotestfmt --hide successful-tests
+

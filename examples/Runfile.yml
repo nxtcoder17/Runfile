@@ -123,3 +123,8 @@ tasks:
       - run: first-and-second
       - echo "Hello World"
 
+  node:
+    interactive: true
+    cmd:
+      - node
+

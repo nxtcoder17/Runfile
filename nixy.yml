@@ -3,6 +3,9 @@ nixpkgs:
 
 packages:
   - go
-
   - pre-commit
   - gotestfmt
+
+onShellEnter: |+
+  export PATH="/workspace/bin:$PATH"
+  source $HOME/.profile
