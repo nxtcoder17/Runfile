@@ -49,7 +49,8 @@ tasks:
     cmd:
       - run: laundry
         env:
-          k4: "HELLO"
+          k4:
+            sh: echo "the value came from shell execution"
       # - |+
       #   import secrets
       #   import os
