@@ -1,5 +1,7 @@
 tasks:
   build:
+    env:
+      CGO_ENABLED: 0
     cmd: 
       - |+
         echo "building ..."
@@ -16,12 +18,7 @@ tasks:
   example:
     dir: ./examples
     cmd: 
-      - |+
-        run cook clean
-
-  test:old:
-    cmd:
-      - go test -json ./pkg/runfile | gotestfmt
+      - echo "hello world"
 
   test:
     env:
@@ -30,7 +27,6 @@ tasks:
       only_failing:
         default: false
     watch:
-      enable: true
       dir:
         - ./parser
       onlySuffixes:
@@ -43,8 +39,11 @@ tasks:
         testfmt_args=""
         [ "$only_failing" = "true" ] && testfmt_args="--hide successful-tests"
 
-        go test -json ./pkg/runfile/... $pattern_args | gotestfmt $testfmt_args
+        go test -json ./pkg/runfile/resolver/... $pattern_args | gotestfmt $testfmt_args
+        go test -json ./pkg/executor/... $pattern_args | gotestfmt $testfmt_args
 
   test:only-failing:
     cmd:
-      - go test -json ./pkg/runfile | gotestfmt --hide successful-tests
+      - go test -json ./pkg/runfile/resolver/... | gotestfmt --hide successful-tests
+      - go test -json ./pkg/executor/... | gotestfmt --hide successful-tests
+

@@ -29,7 +29,11 @@ func (pw *PrefixedWriter) Write(p []byte) (int, error) {
 			break
 		}
 
-		if _, err := pw.w.Write(append(pw.prefix, pw.render(line)...)); err != nil {
+		if _, err := pw.w.Write(pw.prefix); err != nil {
+			return n, err
+		}
+
+		if _, err := pw.w.Write(pw.render(line)); err != nil {
 			return n, err
 		}
 	}
@@ -40,22 +44,26 @@ var _ io.Writer = (*PrefixedWriter)(nil)
 
 type LogWriter struct {
 	io.Writer
-	mu sync.Mutex
+	Mu sync.Mutex
 	wg sync.WaitGroup
 }
 
 // Write implements io.Writer.
 func (s *LogWriter) Write(p []byte) (n int, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	return s.Writer.Write(p)
 }
 
 var _ io.Writer = (*LogWriter)(nil)
 
 func (s *LogWriter) WithPrefix(prefix string) io.Writer {
-	if prefix != "" && IsANSITerminal() {
-		prefix = GetStyledPrefix(prefix)
+	if prefix != "" {
+		if IsANSITerminal() {
+			prefix = GetStyledPrefix(prefix) + " "
+		} else {
+			prefix = "[" + prefix + "] "
+		}
 	}
 
 	return &PrefixedWriter{
@@ -67,14 +75,23 @@ func (s *LogWriter) WithPrefix(prefix string) io.Writer {
 }
 
 func (s *LogWriter) WithDimmedPrefix(prefix string) io.Writer {
-	if prefix != "" && IsANSITerminal() {
-		prefix = GetDimStyledPrefix(prefix)
+	var render func([]byte) []byte
+	if prefix != "" {
+		if IsANSITerminal() {
+			prefix = GetDimStyledPrefix(prefix) + " "
+			render = func(b []byte) []byte { return []byte(GetDimmedText(b)) }
+		} else {
+			prefix = "[" + prefix + "] "
+			render = func(b []byte) []byte { return b }
+		}
+	} else {
+		render = func(b []byte) []byte { return b }
 	}
 
 	return &PrefixedWriter{
 		w:      s.Writer,
 		prefix: []byte(prefix),
 		buf:    bytes.NewBuffer(nil),
-		render: func(b []byte) []byte { return []byte(GetDimmedText(b)) },
+		render: render,
 	}
 }

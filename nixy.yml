@@ -1,0 +1,11 @@
+nixpkgs:
+  default: 554be6495561ff07b6c724047bdd7e0716aa7b46
+
+packages:
+  - go
+  - pre-commit
+  - gotestfmt
+
+onShellEnter: |+
+  export PATH="/workspace/bin:$PATH"
+  source $HOME/.profile

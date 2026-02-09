@@ -2,68 +2,74 @@ package errors
 
 import (
 	"fmt"
+
+	"github.com/nxtcoder17/go.errors"
 )
 
-func ErrReadRunfile(err error) *Error {
-	return WrapErr(err).Msg("failed to read runfile")
+func ErrReadRunfile(err error) *errors.Error {
+	return errors.New("failed to read runfile").Wrap(err)
 }
 
-func ErrParseRunfile(err error) *Error {
-	return WrapErr(err).Msg("failed to parse runfile")
+func ErrParseRunfile(err error) *errors.Error {
+	return errors.New("failed to parse runfile").Wrap(err)
 }
 
-func ErrParseIncludes(err error) *Error {
-	return WrapErr(err).Msg("failed to parse includes")
+func ErrParseIncludes(err error) *errors.Error {
+	return errors.New("failed to parse includes").Wrap(err)
 }
 
-func ErrParseDotEnv(err error) *Error {
-	return WrapErr(err).Msg("failed to parse dotenv file")
+func ErrParseDotEnv(err error) *errors.Error {
+	return errors.New("failed to parse dotenv file").Wrap(err)
 }
 
-func ErrInvalidDotEnv(err error) *Error {
-	return WrapErr(err).Msg("invalid dotenv file")
+func ErrInvalidDotEnv(err error) *errors.Error {
+	return errors.New("invalid dotenv file").Wrap(err)
 }
 
-func ErrInvalidEnvVar(key string, err error) *Error {
-	return WrapErr(err).Msg("invalid env var (" + key + ")")
+func ErrInvalidEnvVar(key string, err error) *errors.Error {
+	return errors.New("invalid env var (" + key + ")").Wrap(err)
 }
 
-func ErrRequiredEnvVar(key string) *Error {
-	return WrapStr("required env var (" + key + ")")
+func ErrRequiredEnvVar(key string) *errors.Error {
+	return errors.New("required env var (" + key + ")")
 }
 
-func ErrInvalidDefaultValue(err error, key string, value any) *Error {
-	return WrapErr(err).Msg("invalid default value for env var (" + key + "), default: " + fmt.Sprint(value))
+func ErrInvalidDefaultValue(err error, key string, value any) *errors.Error {
+	return errors.New("invalid default value for env var (" + key + "), default: " + fmt.Sprint(value)).Wrap(err)
 }
 
-func ErrEvalEnvVarSh(err error) *Error {
-	return WrapErr(err).Msg("failed while executing env-var sh script")
+func ErrEvalEnvVarSh(err error) *errors.Error {
+	return errors.New("failed while executing env-var sh script").Wrap(err)
 }
 
-func ErrTaskNotFound(taskName string) *Error {
-	return WrapStr("task not found").KV("task", taskName)
+func ErrTaskNotFound(taskName string) *errors.Error {
+	return errors.New("task not found").KV("task", taskName)
 }
 
-func ErrTaskFailed(err error) *Error {
-	return WrapErr(err).Msg("task failed")
+func ErrTaskFailed(err error) *errors.Error {
+	return errors.New("task failed").Wrap(err)
 }
 
-func ErrTaskParsingFailed(err error) *Error {
-	return WrapErr(err).Msg("task parsing failed")
+func ErrTaskParsingFailed(err error) *errors.Error {
+	return errors.New("task parsing failed").Wrap(err)
 }
 
-func ErrTaskRequirementNotMet(requirement string, err error) *Error {
-	return WrapErr(err).Msg("task requirements not met").KV("requirement", requirement)
+func ErrTaskRequirementNotMet(requirement string, err error) *errors.Error {
+	return errors.New("task requirements not met").Wrap(err).KV("requirement", requirement)
 }
 
-func ErrTaskInvalidWorkingDir(workingDir string, err error) *Error {
-	return WrapErr(err).Msg("task invalid working directory").KV("working-dir", workingDir)
+func ErrTaskInvalidWorkingDir(workingDir string, err error) *errors.Error {
+	return errors.New("task invalid working directory").Wrap(err).KV("working-dir", workingDir)
 }
 
-func ErrTaskInvalidCommand(command any, err error) *Error {
-	return WrapErr(err).Msg("task invalid command").KV("command", command)
+func ErrTaskInvalidCommand(command any, err error) *errors.Error {
+	return errors.New("task invalid command").Wrap(err).KV("command", command)
 }
 
-func ErrInvalidShellAlias(alias string) *Error {
-	return WrapStr("invalid shell alias").KV("alias", alias)
+func ErrInvalidShellAlias(alias string) *errors.Error {
+	return errors.New("invalid shell alias").KV("alias", alias)
+}
+
+func ErrCircularDependency(taskName string) *errors.Error {
+	return errors.New("circular dependency detected").KV("task", taskName)
 }
