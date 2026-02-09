@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -11,8 +12,7 @@ import (
 func TestParseDotEnvFilesInto(t *testing.T) {
 	tests := []struct {
 		name           string
-		setupFiles     map[string]string // filename -> content
-		files          []string          // will be converted to absolute paths
+		fileContents   []string // each entry becomes .env0, .env1, etc.
 		initialStore   map[string]string
 		expected       map[string]string
 		wantErr        bool
@@ -21,14 +21,13 @@ func TestParseDotEnvFilesInto(t *testing.T) {
 	}{
 		{
 			name:         "when files list is empty, it must pass",
-			files:        []string{},
+			fileContents: []string{},
 			initialStore: map[string]string{},
 			expected:     map[string]string{},
 			wantErr:      false,
 		},
 		{
 			name:       "when file path is relative, it must fail",
-			files:      []string{"relative/path/.env"},
 			useRelPath: true,
 			wantErr:    true,
 		},
@@ -38,14 +37,19 @@ func TestParseDotEnvFilesInto(t *testing.T) {
 			wantErr:        true,
 		},
 		{
+			name:         "when dotenv file has invalid syntax, it must return a parse error",
+			fileContents: []string{"INVALID LINE WITHOUT EQUALS\nANOTHER BAD LINE"},
+			initialStore: map[string]string{},
+			expected:     map[string]string{},
+			wantErr:      true,
+		},
+		{
 			name: "when file is valid, it must parse all key-value pairs",
-			setupFiles: map[string]string{
-				".env": `KEY1=value1
-								 KEY2=value2
-								 KEY3="quoted value"
-								 `,
+			fileContents: []string{
+				`KEY1=value1
+KEY2=value2
+KEY3="quoted value"`,
 			},
-			files:        []string{".env"},
 			initialStore: map[string]string{},
 			expected: map[string]string{
 				"KEY1": "value1",
@@ -56,13 +60,10 @@ func TestParseDotEnvFilesInto(t *testing.T) {
 		},
 		{
 			name: "when multiple files have same key, it must use value from last file",
-			setupFiles: map[string]string{
-				".env1": `KEY1=value1
-KEY2=original`,
-				".env2": `KEY2=overridden
-KEY3=value3`,
+			fileContents: []string{
+				"KEY1=value1\nKEY2=original",
+				"KEY2=overridden\nKEY3=value3",
 			},
-			files:        []string{".env1", ".env2"},
 			initialStore: map[string]string{},
 			expected: map[string]string{
 				"KEY1": "value1",
@@ -72,11 +73,8 @@ KEY3=value3`,
 			wantErr: false,
 		},
 		{
-			name: "when store has existing keys, it must preserve non-overlapping values",
-			setupFiles: map[string]string{
-				".env": `NEW_KEY=new_value`,
-			},
-			files:        []string{".env"},
+			name:         "when store has existing keys, it must preserve non-overlapping values",
+			fileContents: []string{"NEW_KEY=new_value"},
 			initialStore: map[string]string{"EXISTING": "existing_value"},
 			expected: map[string]string{
 				"EXISTING": "existing_value",
@@ -91,19 +89,18 @@ KEY3=value3`,
 			var files []string
 
 			if tt.useRelPath {
-				files = tt.files
+				files = []string{"relative/path/.env"}
 			} else if tt.useNonExistent {
 				files = []string{"/non/existent/path/.env"}
 			} else {
 				tmpDir := t.TempDir()
-				for filename, content := range tt.setupFiles {
+				for i, content := range tt.fileContents {
+					filename := fmt.Sprintf(".env%d", i)
 					path := filepath.Join(tmpDir, filename)
 					if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 						t.Fatalf("failed to create temp file: %v", err)
 					}
-				}
-				for _, f := range tt.files {
-					files = append(files, filepath.Join(tmpDir, f))
+					files = append(files, path)
 				}
 			}
 

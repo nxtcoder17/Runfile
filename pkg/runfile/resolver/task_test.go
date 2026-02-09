@@ -3,7 +3,6 @@ package resolver
 import (
 	"testing"
 
-	"github.com/nxtcoder17/runfile/pkg/executor"
 	"github.com/nxtcoder17/runfile/pkg/runfile/spec"
 	"github.com/nxtcoder17/runfile/pkg/writer"
 )
@@ -481,11 +480,4 @@ func TestCreateStepsWithEnv(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper to check if a step uses the correct executor type
-func isInteractiveStep(step executor.Step) bool {
-	// This is a basic check - in real tests you might want to
-	// use reflection or add a method to identify command types
-	return len(step.Commands) > 0
 }

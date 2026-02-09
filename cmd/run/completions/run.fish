@@ -26,6 +26,7 @@ function __fish_completion_no_subcommand --description 'Test if there has been a
     return 0
 end
 
-complete -c completion -n '__fish_completion_no_subcommand' -f -l help -s h -d 'show help'
-complete -c completion -n '__fish_completion_no_subcommand' -f -l help -s h -d 'show help'
+complete -c run -n '__fish_completion_no_subcommand' -f -l help -s h -d 'show help'
+complete -c run -n '__fish_completion_no_subcommand' -f -l list -s l -d 'list all tasks'
+complete -c run -n '__fish_completion_no_subcommand' -rF -l file -s f -d 'runs targets from this runfile'
 

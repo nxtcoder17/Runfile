@@ -165,8 +165,6 @@ func (r *Resolver) RunTask(ctx context.Context, name string) error {
 		slog.Debug("3. watcher closed")
 	}()
 
-	pipeline.Start(ctx)
-
 	counter := 0
 	for ev := range watch.GetEvents() {
 		slog.Debug("received", "event", ev)

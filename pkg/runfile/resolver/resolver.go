@@ -107,7 +107,7 @@ func Load(ctx context.Context, file string) (*Resolver, error) {
 
 			for i := range task.DotEnv {
 				if !filepath.IsAbs(task.DotEnv[i]) {
-					task.DotEnv[i] = filepath.Join(runfileDir, task.DotEnv[i])
+					task.DotEnv[i] = filepath.Join(includedDir, task.DotEnv[i])
 				}
 			}
 

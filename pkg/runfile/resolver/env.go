@@ -16,21 +16,24 @@ import (
 )
 
 func parseDotEnvFilesInto(store map[string]string, files []string) error {
-	for _, f := range files {
-		if !filepath.IsAbs(f) {
-			return errors.New("dotenv file must have absolute paths").KV("dotenv.file", f)
+	for _, file := range files {
+		if !filepath.IsAbs(file) {
+			return errors.New("dotenv file must have absolute paths").KV("dotenv.file", file)
 		}
 
-		f, err := os.Open(f)
+		f, err := os.Open(file)
 		if err != nil {
-			return errors.New("failed to open dotenv file").Wrap(err).KV("dotenv.file", f)
+			return errors.New("failed to open dotenv file").Wrap(err).KV("dotenv.file", file)
 		}
 
 		m, err := godotenv.Parse(f)
 		if err != nil {
-			return errors.New("failed to parse dotenv file").Wrap(err).KV("dotenv.file", f)
+			return errors.New("failed to parse dotenv file").Wrap(err).KV("dotenv.file", file)
 		}
-		f.Close()
+
+		if err := f.Close(); err != nil {
+			return errors.New("failed to close dotenv file").Wrap(err).KV("dotenv.file", file)
+		}
 
 		maps.Copy(store, m)
 	}
@@ -70,7 +73,9 @@ func parseEnvInto(ctx context.Context, envStore map[string]string, envMap map[st
 						return errors.New("ENV-EXPRESSION: value field `required` must be a boolean").KV("env.key", k, "env.value", value)
 					}
 					if isRequired {
-						return errors.New(fmt.Sprintf("ENV-EXPRESSION: env var '%s' is required, it must be provided", k)).KV("env.key", k, "env.value", value)
+						if _, exists := lookupEnv(k); !exists {
+							return errors.New(fmt.Sprintf("ENV-EXPRESSION: env var '%s' is required, it must be provided", k)).KV("env.key", k, "env.value", value)
+						}
 					}
 				}
 
@@ -81,7 +86,10 @@ func parseEnvInto(ctx context.Context, envStore map[string]string, envMap map[st
 							return errors.New(fmt.Sprintf("ENV-EXPRESSION: value field `%s`, must have a string value", optKey)).KV("env.key", k, "env.value", value)
 						}
 
-						lazyEvalMap[k] = exec.CommandContext(ctx, shell[0], append(shell[1:], envEvalScript)...)
+					// #nosec G204 - This is intentional: env vars with sh/bash keys are meant to
+					// execute shell commands defined in the Runfile. The Runfile is trusted
+					// user-provided configuration, similar to Makefiles or shell scripts.
+					lazyEvalMap[k] = exec.CommandContext(ctx, shell[0], append(shell[1:], envEvalScript)...)
 						break
 					}
 				}

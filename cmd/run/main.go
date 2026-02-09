@@ -179,16 +179,6 @@ func main() {
 			// INFO: for supporting flags that have been suffixed post arguments
 			args := make([]string, 0, len(c.Args().Slice()))
 			for _, arg := range c.Args().Slice() {
-				if arg == "-p" || arg == "--parallel" {
-					parallel = true
-					continue
-				}
-
-				if arg == "-w" || arg == "--watch" {
-					watch = true
-					continue
-				}
-
 				if arg == "--debug" {
 					debug = true
 					continue
@@ -260,7 +250,7 @@ func getRunfilePath(dir string) (string, error) {
 		}
 
 		if stat.IsDir() {
-			return "", fmt.Errorf("Runfile.yml is a directory")
+			return "", fmt.Errorf("%s is a directory", filepath.Join(dir, f))
 		}
 
 		return filepath.Join(dir, f), nil
@@ -283,10 +273,15 @@ func locateRunfile(c *cli.Command) (string, error) {
 
 		for oldDir != dir {
 			fp, err := getRunfilePath(dir)
-			if err != nil && !errors.Is(err, ErrRunfileNotFound) {
-				oldDir = dir
-				dir = filepath.Dir(dir)
-				continue
+			if err != nil {
+				if errors.Is(err, ErrRunfileNotFound) {
+					// Not found in this dir, try parent
+					oldDir = dir
+					dir = filepath.Dir(dir)
+					continue
+				}
+				// Some other error
+				return "", err
 			}
 
 			return fp, nil

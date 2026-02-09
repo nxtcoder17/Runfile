@@ -71,5 +71,5 @@ func ErrInvalidShellAlias(alias string) *errors.Error {
 }
 
 func ErrCircularDependency(taskName string) *errors.Error {
-	return errors.New("invalid shell alias").KV("task", taskName)
+	return errors.New("circular dependency detected").KV("task", taskName)
 }
