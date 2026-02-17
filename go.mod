@@ -7,12 +7,14 @@ toolchain go1.24.2
 require (
 	github.com/alecthomas/chroma/v2 v2.15.0
 	github.com/charmbracelet/lipgloss v1.0.0
+	github.com/creack/pty v1.1.24
 	github.com/joho/godotenv v1.5.1
 	github.com/muesli/termenv v0.15.2
 	github.com/nxtcoder17/fastlog v0.0.0-20251112144402-5324a708e570
 	github.com/nxtcoder17/fwatcher v1.2.2-0.20250804201159-543ad31be162
 	github.com/nxtcoder17/go.errors v0.0.0-20251116060059-d31bd582d4c8
 	github.com/urfave/cli/v3 v3.0.0-beta1
+	golang.org/x/sync v0.19.0
 	golang.org/x/term v0.39.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -20,7 +22,6 @@ require (
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/x/ansi v0.4.2 // indirect
-	github.com/creack/pty v1.1.24 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
@@ -33,7 +34,6 @@ require (
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/samber/slog-common v0.18.1 // indirect
 	github.com/samber/slog-zerolog/v2 v2.7.3 // indirect
-	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 )

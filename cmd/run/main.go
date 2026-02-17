@@ -12,7 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fastlog"
+	term "golang.org/x/term"
 	"github.com/nxtcoder17/go.errors"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/urfave/cli/v3"
@@ -35,6 +37,20 @@ var shellCompletionPS string
 func main() {
 	if Version == "" {
 		Version = fmt.Sprintf("nightly | %s", time.Now().Format(time.RFC3339))
+	}
+
+	// Detect terminal theme early, before any subprocesses run.
+	// This prevents ANSI response sequences from leaking onto stdin.
+	// Uses stderr for probing since stdout may be piped/redirected.
+	// When no TTY is available, RUNFILE_THEME stays unset and highlighting is skipped.
+	if os.Getenv("RUNFILE_THEME") == "" {
+		if term.IsTerminal(int(os.Stderr.Fd())) {
+			theme := "dark"
+			if !termenv.NewOutput(os.Stderr).HasDarkBackground() {
+				theme = "light"
+			}
+			os.Setenv("RUNFILE_THEME", theme)
+		}
 	}
 
 	cmd := cli.Command{

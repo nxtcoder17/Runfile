@@ -14,7 +14,6 @@ import (
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fwatcher/pkg/watcher"
 	"github.com/nxtcoder17/go.errors"
 	"github.com/nxtcoder17/runfile/pkg/executor"
@@ -272,21 +271,10 @@ func CreateCommand(ctx context.Context, args CmdArgs) *exec.Cmd {
 	return c
 }
 
-var (
-	darkThemeOnce   sync.Once
-	darkThemeResult bool
-)
-
-func isDarkTheme() bool {
-	darkThemeOnce.Do(func() {
-		darkThemeResult = termenv.NewOutput(os.Stdout).HasDarkBackground()
-	})
-	return darkThemeResult
-}
-
 func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 	borderColor := "#4388cc"
-	if !isDarkTheme() {
+	switch os.Getenv("RUNFILE_THEME") {
+	case "light":
 		borderColor = "#3d5485"
 	}
 
@@ -312,18 +300,19 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 	}
 
 	hlCode := new(bytes.Buffer)
-	// choose colorschemes from `https://swapoff.org/chroma/playground/`
-	colorscheme := "catppuccin-macchiato"
-	if !isDarkTheme() {
-		colorscheme = "xcode"
+	cmdStr := strings.TrimSpace(cmd)
+
+	switch os.Getenv("RUNFILE_THEME") {
+	case "dark":
+		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", "catppuccin-macchiato")
+	case "light":
+		quick.Highlight(hlCode, cmdStr, lang, "terminal16m", "xcode")
+	default:
+		hlCode.WriteString(cmdStr)
 	}
 
 	// INFO: 2 for spaces around prefix
 	longestLen := longestLineLen(cmd) + len(prefix) + 2
-
-	cmdStr := strings.TrimSpace(cmd)
-
-	quick.Highlight(hlCode, cmdStr, lang, "terminal16m", colorscheme)
 
 	if width > 0 && longestLen >= width-2 {
 		s = s.Width(width - 2)
