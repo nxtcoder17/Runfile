@@ -68,7 +68,7 @@ tasks:
       k4:
         sh: echo "1234"
     cmd: 
-      # - run: cook
+      - run: cook
       - console.log(process.env.k4)
       - console.log("hello from laundry")
 
@@ -128,4 +128,12 @@ tasks:
     interactive: true
     cmd:
       - node
+
+  test-watch:
+    watch:
+      enabled: true
+      dirs:
+        - .
+    cmd:
+      - echo "STARTED"
 

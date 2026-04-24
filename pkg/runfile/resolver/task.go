@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/charmbracelet/lipgloss"
@@ -104,15 +105,14 @@ func (r *Resolver) RunTask(ctx context.Context, name string) error {
 		return err
 	}
 
-	pipeline := executor.NewPipeline(slog.Default(), steps)
+	currentPipeline := executor.NewPipeline(slog.Default(), steps)
 
 	notWatching := rt.Watch == nil || rt.Watch.Enabled == false
 
 	if notWatching {
-		return pipeline.Start(ctx)
+		return currentPipeline.Start(ctx)
 	}
 
-	var wg sync.WaitGroup
 	watch, err := watcher.NewWatcher(ctx, watcher.WatcherArgs{
 		WatchDirs:            rt.Watch.Dirs,
 		IgnoreDirs:           rt.Watch.IgnoreDirs,
@@ -126,57 +126,63 @@ func (r *Resolver) RunTask(ctx context.Context, name string) error {
 		return err
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		// ctx.Logger().Info("fwatcher is closing ...")
-		watch.Close()
-	}()
+	go watch.Watch(ctx)
+	defer watch.Close()
 
-	// executors := []executor.Executor{pipeline}
-	//
-	// if rt.Watch.SSE != nil && rt.Watch.SSE.Addr != "" {
-	// 	executors = append(executors, executor.NewSSEExecutor(executor.SSEExecutorArgs{Addr: rt.Watch.SSE.Addr}))
-	// }
+	var pMu sync.Mutex
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := pipeline.Start(ctx); err != nil {
-			slog.Error("starting command", "err", err)
+	run := func() {
+		pMu.Lock()
+		defer pMu.Unlock()
+
+		if currentPipeline != nil {
+			currentPipeline.Stop()
 		}
-		slog.Debug("final executor start finished")
-	}()
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		<-ctx.Done()
-		pipeline.Stop()
-		slog.Debug("2. context cancelled")
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		watch.Watch(ctx)
-		slog.Debug("3. watcher closed")
-	}()
-
-	counter := 0
-	for ev := range watch.GetEvents() {
-		slog.Debug("received", "event", ev)
-		counter += 1
-		slog.Info(fmt.Sprintf("[RELOADING (%d)] due changes in %s", counter, ev.Name))
+		currentPipeline = executor.NewPipeline(slog.Default(), steps)
+		go func() {
+			if err := currentPipeline.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				// slog.Error("pipeline finished with error", "err", err)
+			}
+		}()
 	}
 
-	// if err := watch.WatchAndExecute(ctx, executors); err != nil {
-	// 	return err
-	// }
-	//
-	wg.Wait()
-	return nil
+	run()
+	// // initial run
+	// go func() {
+	// 	if err := currentPipeline.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+	// 		// slog.Error("pipeline finished with error", "err", err)
+	// 	}
+	// }()
+
+	counter := 0
+	debounceDuration := 300 * time.Millisecond
+	timer := time.NewTimer(debounceDuration)
+	if !timer.Stop() {
+		<-timer.C
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			pMu.Lock()
+			if currentPipeline != nil {
+				currentPipeline.Stop()
+			}
+			pMu.Unlock()
+			return nil
+		case ev, ok := <-watch.GetEvents():
+			if !ok {
+				return nil
+			}
+			slog.Debug("received", "event", ev)
+			timer.Reset(debounceDuration)
+		case <-timer.C:
+			counter += 1
+			slog.Info(fmt.Sprintf("[RELOADING (%d)]", counter))
+			run()
+		}
+	}
 }
 
 func parseCommands(commands []any) ([]*Command, error) {
@@ -311,8 +317,8 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 		hlCode.WriteString(cmdStr)
 	}
 
-	// INFO: 2 for spaces around prefix
-	longestLen := longestLineLen(cmd) + len(prefix) + 2
+	// Use display width so unicode prefixes like "≫" don't skew the box layout.
+	longestLen := longestLineWidth(cmd) + prefixDisplayWidth(prefix)
 
 	if width > 0 && longestLen >= width-2 {
 		s = s.Width(width - 2)
@@ -323,12 +329,12 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 	fmt.Fprintf(w, "\r\033[K%s%s\n", padString(s.Render(hlCode.String()), prefix), s.UnsetBorderStyle())
 }
 
-func longestLineLen(str string) int {
+func longestLineWidth(str string) int {
 	sp := strings.Split(str, "\n")
-	l := len(sp[0])
+	l := lipgloss.Width(sp[0])
 	for i := 1; i < len(sp); i++ {
-		if len(sp[i]) > l {
-			l = len(sp[i])
+		if lipgloss.Width(sp[i]) > l {
+			l = lipgloss.Width(sp[i])
 		}
 	}
 
@@ -337,15 +343,24 @@ func longestLineLen(str string) int {
 
 func padString(str string, withPrefix string) string {
 	sp := strings.Split(str, "\n")
+	indent := strings.Repeat(" ", prefixDisplayWidth(withPrefix))
 	for i := range sp {
 		if i == 0 {
 			sp[i] = fmt.Sprintf("%s %s", writer.GetStyledPrefix(withPrefix), sp[i])
 			continue
 		}
-		sp[i] = fmt.Sprintf("%s %s", strings.Repeat(" ", len(withPrefix)+2), sp[i])
+		sp[i] = indent + sp[i]
 	}
 
 	return strings.Join(sp, "\n")
+}
+
+func prefixDisplayWidth(prefix string) int {
+	if prefix == "" {
+		return 0
+	}
+
+	return lipgloss.Width("[" + prefix + "] ")
 }
 
 type createCommandGroupArgs struct {
@@ -384,6 +399,10 @@ func (r *Resolver) createSteps(task *ResolvedTask, args createCommandGroupArgs) 
 		}
 
 		if cmd.IsRunTarget {
+			if cycle := appendCycle(taskTrail, cmd.Text); cycle != nil {
+				return nil, errors.New("Circular Task Dependency").KV("cycle", strings.Join(cycle, " -> "))
+			}
+
 			rt, err := r.GetTask(cmd.Text)
 			if err != nil {
 				return nil, err
@@ -447,4 +466,18 @@ func (r *Resolver) createSteps(task *ResolvedTask, args createCommandGroupArgs) 
 
 	slog.Debug("created command groups", "len", len(steps))
 	return steps, nil
+}
+
+func appendCycle(taskTrail []string, next string) []string {
+	for i := range taskTrail {
+		if taskTrail[i] != next {
+			continue
+		}
+
+		cycle := append([]string{}, taskTrail[i:]...)
+		cycle = append(cycle, next)
+		return cycle
+	}
+
+	return nil
 }
