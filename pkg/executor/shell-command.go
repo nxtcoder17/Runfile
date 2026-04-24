@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/creack/pty"
 	"golang.org/x/term"
@@ -49,9 +48,23 @@ func NewInteractiveShellCommand(handler func(context.Context) *exec.Cmd) *comman
 
 		// Copy I/O
 		go io.Copy(ptmx, os.Stdin)
-		io.Copy(os.Stdout, ptmx)
+		go io.Copy(os.Stdout, ptmx)
 
-		return cmd.Wait()
+		done := make(chan error, 1)
+		go func() {
+			done <- cmd.Wait()
+		}()
+
+		select {
+		case err := <-done:
+			return err
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				syscall.Kill(cmd.Process.Pid, syscall.SIGKILL)
+			}
+			<-done
+			return ctx.Err()
+		}
 	})
 }
 
@@ -76,14 +89,8 @@ func NewShellCommand(handler func(context.Context) *exec.Cmd) *command {
 		case err := <-done:
 			return err
 		case <-ctx.Done():
-			syscall.Kill(-pid, syscall.SIGTERM)
-
-			select {
-			case <-done:
-			case <-time.After(2 * time.Second):
-				syscall.Kill(-pid, syscall.SIGKILL)
-				<-done
-			}
+			syscall.Kill(-pid, syscall.SIGKILL)
+			<-done
 			return ctx.Err()
 		}
 	})

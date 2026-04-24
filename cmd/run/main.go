@@ -14,10 +14,10 @@ import (
 
 	"github.com/muesli/termenv"
 	"github.com/nxtcoder17/fastlog"
-	term "golang.org/x/term"
 	"github.com/nxtcoder17/go.errors"
 	"github.com/nxtcoder17/runfile/pkg/runfile"
 	"github.com/urfave/cli/v3"
+	term "golang.org/x/term"
 )
 
 var Version string

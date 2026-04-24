@@ -25,7 +25,7 @@ func (pw *PrefixedWriter) Write(p []byte) (int, error) {
 		line, err := pw.buf.ReadBytes('\n')
 		if errors.Is(err, io.EOF) {
 			pw.buf.Reset()
-			pw.buf.Write(pw.render(line))
+			pw.w.Write(pw.render(line))
 			break
 		}
 

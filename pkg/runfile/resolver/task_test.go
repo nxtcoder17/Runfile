@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/nxtcoder17/runfile/pkg/runfile/spec"
@@ -350,6 +351,61 @@ func TestCreateSteps(t *testing.T) {
 			subStepIndices: []int{1}, // only step at index 1 should have substeps
 			wantErr:        false,
 		},
+		{
+			name: "when task has circular dependency, it must fail",
+			resolver: &Resolver{
+				Env: map[string]string{},
+				Tasks: map[string]extendedTaskSpec{
+					"a": {
+						TaskSpec: spec.TaskSpec{
+							Commands: []any{map[string]any{"run": "b"}},
+						},
+					},
+					"b": {
+						TaskSpec: spec.TaskSpec{
+							Commands: []any{map[string]any{"run": "a"}},
+						},
+					},
+				},
+			},
+			task: &ResolvedTask{
+				Name:  "a",
+				Shell: []string{"bash", "-c"},
+				Commands: []*Command{
+					{Text: "b", IsRunTarget: true},
+				},
+			},
+			args: createCommandGroupArgs{
+				Stdout: &writer.LogWriter{},
+				Stderr: &writer.LogWriter{},
+			},
+			wantErr: true,
+		},
+		{
+			name: "when task runs itself, it must fail",
+			resolver: &Resolver{
+				Env: map[string]string{},
+				Tasks: map[string]extendedTaskSpec{
+					"a": {
+						TaskSpec: spec.TaskSpec{
+							Commands: []any{map[string]any{"run": "a"}},
+						},
+					},
+				},
+			},
+			task: &ResolvedTask{
+				Name:  "a",
+				Shell: []string{"bash", "-c"},
+				Commands: []*Command{
+					{Text: "a", IsRunTarget: true},
+				},
+			},
+			args: createCommandGroupArgs{
+				Stdout: &writer.LogWriter{},
+				Stderr: &writer.LogWriter{},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -359,6 +415,14 @@ func TestCreateSteps(t *testing.T) {
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
+				}
+
+				if strings.Contains(tt.name, "circular dependency") && !strings.Contains(err.Error(), "a -> b -> a") {
+					t.Fatalf("expected circular dependency error to include cycle path, got %v", err)
+				}
+
+				if strings.Contains(tt.name, "runs itself") && !strings.Contains(err.Error(), "a -> a") {
+					t.Fatalf("expected self dependency error to include cycle path, got %v", err)
 				}
 				return
 			}
