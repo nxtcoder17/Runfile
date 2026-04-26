@@ -21,7 +21,6 @@ import (
 	fn "github.com/nxtcoder17/runfile/pkg/functions"
 	"github.com/nxtcoder17/runfile/pkg/runfile/spec"
 	"github.com/nxtcoder17/runfile/pkg/writer"
-	"golang.org/x/term"
 )
 
 type TaskContext struct {
@@ -278,33 +277,6 @@ func CreateCommand(ctx context.Context, args CmdArgs) *exec.Cmd {
 }
 
 func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
-	borderColor := "#4388cc"
-	switch os.Getenv("RUNFILE_THEME") {
-	case "light":
-		borderColor = "#3d5485"
-	}
-
-	myBorder := lipgloss.Border{
-		Top:         "-+",
-		Bottom:      "-+",
-		Left:        "|",
-		Right:       "|",
-		TopLeft:     "+",
-		TopRight:    "+",
-		BottomLeft:  "+",
-		BottomRight: "+",
-	}
-
-	s := lipgloss.NewStyle().Border(myBorder).BorderForeground(lipgloss.Color(borderColor)).PaddingLeft(1).PaddingRight(1)
-	defer s.UnsetBorderStyle()
-	defer s.UnsetPadding()
-
-	width := 0
-
-	if term.IsTerminal(0) {
-		width, _, _ = term.GetSize(0)
-	}
-
 	hlCode := new(bytes.Buffer)
 	cmdStr := strings.TrimSpace(cmd)
 
@@ -317,28 +289,9 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 		hlCode.WriteString(cmdStr)
 	}
 
-	// Use display width so unicode prefixes like "≫" don't skew the box layout.
-	longestLen := longestLineWidth(cmd) + prefixDisplayWidth(prefix)
-
-	if width > 0 && longestLen >= width-2 {
-		s = s.Width(width - 2)
-	}
-
 	// w.Mu.Lock()
 	// defer w.Mu.Unlock()
-	fmt.Fprintf(w, "\r\033[K%s%s\n", padString(s.Render(hlCode.String()), prefix), s.UnsetBorderStyle())
-}
-
-func longestLineWidth(str string) int {
-	sp := strings.Split(str, "\n")
-	l := lipgloss.Width(sp[0])
-	for i := 1; i < len(sp); i++ {
-		if lipgloss.Width(sp[i]) > l {
-			l = lipgloss.Width(sp[i])
-		}
-	}
-
-	return l
+	fmt.Fprintf(w, "\r\033[K%s\n", padString(hlCode.String(), prefix))
 }
 
 func padString(str string, withPrefix string) string {
