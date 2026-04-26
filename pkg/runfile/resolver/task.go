@@ -291,18 +291,19 @@ func printCommand(w *writer.LogWriter, prefix, lang, cmd string) {
 
 	// w.Mu.Lock()
 	// defer w.Mu.Unlock()
-	fmt.Fprintf(w, "\r\033[K%s\n", padString(hlCode.String(), prefix))
+	fmt.Fprintf(w, "\r\033[K%s\n", formatCommandPreview(hlCode.String(), prefix))
 }
 
-func padString(str string, withPrefix string) string {
+func formatCommandPreview(str string, withPrefix string) string {
 	sp := strings.Split(str, "\n")
 	indent := strings.Repeat(" ", prefixDisplayWidth(withPrefix))
+	rail := lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Faint(true).Render("│")
 	for i := range sp {
 		if i == 0 {
-			sp[i] = fmt.Sprintf("%s %s", writer.GetStyledPrefix(withPrefix), sp[i])
+			sp[i] = fmt.Sprintf("%s %s %s", writer.GetStyledPrefix(withPrefix), rail, sp[i])
 			continue
 		}
-		sp[i] = indent + sp[i]
+		sp[i] = indent + rail + " " + sp[i]
 	}
 
 	return strings.Join(sp, "\n")
