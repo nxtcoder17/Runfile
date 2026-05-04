@@ -2,18 +2,27 @@ tasks:
   build:
     env:
       CGO_ENABLED: 0
+      GOOS:
+        sh: go env GOOS
+      GOARCH:
+        sh: go env GOARCH
+      version:
+        required: true
     cmd: 
       - |+
         echo "building ..."
-        go build -o bin/run -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
+        go build -o bin/run-${GOOS}-${GOARCH} -ldflags="-s -w -X main.Version=$VERSION" -tags urfave_cli_no_docs ./cmd/run
         echo "DONE"
 
   build:dev:
+    watch:
+      enabled: true
+      dirs:
+        - .
     cmd: 
-      - |+
-        echo "building ..."
-        go build -o bin/run-nightly -ldflags="-s -w" -tags urfave_cli_no_docs ./cmd/run
-        echo "DONE"
+      - run: build
+        env:
+          version: "nightly"
 
   example:
     dir: ./examples
