@@ -6,7 +6,22 @@ packages:
   - pre-commit
   - gotestfmt
 
+builds:
+  runfile:
+    command: |+
+      echo "VERSION: $VERSION"
 
-onShellEnter: |+
-  export PATH="/workspace/bin:$PATH"
-  source $HOME/.profile
+      run build GOOS=linux GOARCH=amd64 version=$VERSION
+      run build GOOS=linux GOARCH=arm64 version=$VERSION
+      run build GOOS=darwin GOARCH=amd64 version=$VERSION
+      run build GOOS=darwin GOARCH=arm64 version=$VERSION
+
+    paths:
+      - ./bin/run-linux-amd64
+      - ./bin/run-linux-arm64
+      - ./bin/run-darwin-amd64
+      - ./bin/run-darwin-arm64
+
+# onShellEnter: |+
+#   export PATH="/workspace/bin:$PATH"
+#   # source $HOME/.profile

@@ -40,37 +40,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: nxtcoder17/nixy@feat/github-action
+
       - uses: nxtcoder17/actions/setup-cache-go@v1
         with:
           cache_key: "run"
           working_directory: .
 
-      - uses: nxtcoder17/actions/setup-nix-cachix@v1
-        with:
-          flake_lock: "./flake.lock"
-          nix_develop_arguments: ".#default"
-          cachix_cache_name: ${{ secrets.CACHIX_CACHE_NAME }}
-          cachix_auth_token:  ${{ secrets.CACHIX_AUTH_TOKEN }}
+      # - uses: nxtcoder17/actions/setup-nix-cachix@v1
+      #   with:
+      #     flake_lock: "./flake.lock"
+      #     nix_develop_arguments: ".#default"
+      #     cachix_cache_name: ${{ secrets.CACHIX_CACHE_NAME }}
+      #     cachix_auth_token:  ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       - uses: nxtcoder17/actions/metadata@main
         id: meta
+
+      # - name: Build Binary
+      #   shell: bash
+      #   env:
+      #     VERSION: ${{steps.meta.outputs.version}}
+      #   run: |+
+      #     nixy build runfile
 
       - name: Build Binary
         shell: bash
         env:
           CGO_ENABLED: 0
+          VERSION: "${{ steps.meta.outputs.version }}.${{ steps.meta.outputs.commit_slug }}"
         run: |+
           arch_list=("amd64" "arm64")
           os_list=("linux" "darwin")
 
+
           for os in "${os_list[@]}"; do
             for arch in "${arch_list[@]}"; do
-              echo "🚧 building binary for os=$os arch=$arch"
-              export GOARCH=$arch
               export GOOS=$os
+              export GOARCH=$arch
 
-              binary=bin/run-$GOOS-$GOARCH
-              time go build -o $binary -ldflags="-s -w -X main.Version=${{ steps.meta.outputs.version }}-${{steps.meta.outputs.short_sha}}" -tags urfave_cli_no_docs ./cmd/run
+              echo "🚧 building binary for os=$GOOS arch=$GOARCH"
+              go build -o bin/run-${GOOS}-${GOARCH} -ldflags="-s -w -X main.Version=$VERSION" -tags urfave_cli_no_docs ./cmd/run
             done
           done
 

@@ -4,3 +4,4 @@ bin/
 Taskfile.yml
 go.work*
 tags
+.nixy
