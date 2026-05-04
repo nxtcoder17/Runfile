@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: nxtcoder17/nixy@feat/github-action
+      - uses: nxtcoder17/nixy@master
 
       - uses: nxtcoder17/actions/setup-cache-go@v1
         with:
