@@ -213,8 +213,9 @@ func main() {
 				return fmt.Errorf("parallel and watch can't be set together")
 			}
 
-			logger := fastlog.New(fastlog.Console(), fastlog.ShowDebugLogs(debug), fastlog.WithoutTimestamp())
+			logger := fastlog.New().DebugMode(debug).SkipCallerFrames(1).Timestamp(true).Console()
 			slog.SetDefault(logger.Slog())
+			fastlog.SetDefaultLogger(logger)
 
 			runfilePath, err := locateRunfile(c)
 			if err != nil {

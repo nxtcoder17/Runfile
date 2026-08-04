@@ -327,6 +327,7 @@ type createCommandGroupArgs struct {
 
 func (r *Resolver) createSteps(task *ResolvedTask, args createCommandGroupArgs) ([]executor.Step, error) {
 	var steps []executor.Step
+	var parallelSteps []executor.Step
 
 	taskTrail := make([]string, 0, len(args.TaskTrail)+1)
 	for i := range args.TaskTrail {
@@ -373,10 +374,15 @@ func (r *Resolver) createSteps(task *ResolvedTask, args createCommandGroupArgs) 
 				return nil, err
 			}
 
-			steps = append(steps, executor.Step{
+			step := executor.Step{
 				SubSteps: substeps,
 				Parallel: rt.Parallel,
-			})
+			}
+			if task.Parallel {
+				parallelSteps = append(parallelSteps, step)
+			} else {
+				steps = append(steps, step)
+			}
 			continue
 		}
 
@@ -415,7 +421,15 @@ func (r *Resolver) createSteps(task *ResolvedTask, args createCommandGroupArgs) 
 			step.Commands = append(step.Commands, executor.NewShellCommand(cmdHandler).AddPreHook(preHook))
 		}
 
-		steps = append(steps, step)
+		if task.Parallel {
+			parallelSteps = append(parallelSteps, step)
+		} else {
+			steps = append(steps, step)
+		}
+	}
+
+	if task.Parallel {
+		steps = append(steps, executor.Step{SubSteps: parallelSteps, Parallel: true})
 	}
 
 	slog.Debug("created command groups", "len", len(steps))

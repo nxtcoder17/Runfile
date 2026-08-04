@@ -299,8 +299,8 @@ func TestCreateSteps(t *testing.T) {
 				Stdout: &writer.LogWriter{},
 				Stderr: &writer.LogWriter{},
 			},
-			expectedSteps: 2,
-			expectedCmds:  []int{1, 1},
+			expectedSteps: 1,
+			expectedCmds:  []int{0},
 			wantErr:       false,
 		},
 		{

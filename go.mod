@@ -10,7 +10,7 @@ require (
 	github.com/creack/pty v1.1.24
 	github.com/joho/godotenv v1.5.1
 	github.com/muesli/termenv v0.15.2
-	github.com/nxtcoder17/fastlog v0.0.0-20251112144402-5324a708e570
+	github.com/nxtcoder17/fastlog v0.0.0-20260627152536-8a7ba81411c1
 	github.com/nxtcoder17/fwatcher v1.2.2-0.20250804201159-543ad31be162
 	github.com/nxtcoder17/go.errors v0.0.0-20251116060059-d31bd582d4c8
 	github.com/urfave/cli/v3 v3.0.0-beta1

@@ -57,41 +57,23 @@ func (p *Pipeline) Stop() error {
 }
 
 func (p *Pipeline) execStep(ctx context.Context, step *Step) error {
-	if err := p.execSubSteps(ctx, step); err != nil {
-		return err
-	}
-	return p.execCommands(ctx, step)
-}
-
-func (p *Pipeline) execCommands(ctx context.Context, step *Step) error {
 	if step.Parallel {
 		g, gctx := errgroup.WithContext(ctx)
-		for i := range step.Commands {
-			cmd := step.Commands[i]
-			g.Go(func() error {
-				return cmd.Run(gctx)
-			})
-		}
-		return g.Wait()
-	}
 
-	for i := range step.Commands {
-		if err := step.Commands[i].Run(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (p *Pipeline) execSubSteps(ctx context.Context, step *Step) error {
-	if step.Parallel {
-		g, gctx := errgroup.WithContext(ctx)
 		for i := range step.SubSteps {
 			substep := &step.SubSteps[i]
 			g.Go(func() error {
 				return p.execStep(gctx, substep)
 			})
 		}
+
+		for i := range step.Commands {
+			cmd := step.Commands[i]
+			g.Go(func() error {
+				return cmd.Run(gctx)
+			})
+		}
+
 		return g.Wait()
 	}
 
@@ -100,5 +82,12 @@ func (p *Pipeline) execSubSteps(ctx context.Context, step *Step) error {
 			return err
 		}
 	}
+
+	for i := range step.Commands {
+		if err := step.Commands[i].Run(ctx); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
